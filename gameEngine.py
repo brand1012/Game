@@ -19,6 +19,7 @@ class gameEngine(object):
         self.drawSurface = pygame.Surface(list(self.RESOLUTION))
 
         self.myFont = pygame.font.SysFont("Arial", 16)
+        self.infoFont = pygame.font.SysFont("Arial", 12)  # smaller font for info screen
 
         self.spriteManager = SpriteManager()
 
@@ -33,6 +34,11 @@ class gameEngine(object):
         self.state = "warehouse"
         self.currentMinigame = None
         self.highScores = self.loadHighScores()
+
+        self.workers = 1
+        self.vans = 1
+        self.vanCapacity = 1
+        self.contractMultiplier = 1
 
         self.zones = [
 
@@ -79,7 +85,7 @@ class gameEngine(object):
             # Offices (bottom)
             Zone(
                 position=(200, 550),
-                size=(600, 100),
+                size=(500, 100),
                 name="Offices",
                 color=(220, 220, 220)
             ),
@@ -98,11 +104,19 @@ class gameEngine(object):
                 size=(100, 625),
                 name="Vehicle Lane",
                 color=(200,200,200)
+            ),
+
+            # Upgrade station
+            Zone(
+                position=(700, 550),
+                size=(100, 100),
+                name="Upgrade Station",
+                color=(200, 255, 200)
             )
+
         ]
 
         self.walls = []
-
 
         # ----- UI / Tycoon Stats -----
         self.money = 0
@@ -113,6 +127,16 @@ class gameEngine(object):
 
         self.gameClock = pygame.time.Clock()
     
+    def getIncomePerSecond(self):
+        baseWorkerIncome = self.workers * 0.5
+        vanIncome = self.vans * self.vanCapacity * 0.5
+        return (baseWorkerIncome + vanIncome) * self.contractMultiplier
+    
+    def getPackagesDeliveredPerSecond(self):
+        baseWorker = self.workers * 1
+        van = self.vans * self.vanCapacity * 1
+        return (baseWorker + van) * self.contractMultiplier
+
     def drawWarehouse(self, surface):
         surface.fill((255,255,255))
         surface.blit(self.floor, -drawable.CAMERA_OFFSET)
@@ -150,6 +174,29 @@ class gameEngine(object):
             "Press SPACE to continue", True, (200,200,200))
         surface.blit(continueText, (120, 170))
 
+    def drawInfoScreen(self, surface):
+        surface.fill((40, 40, 60))
+
+        title = self.infoFont.render("FACTORY INFO", True, (255, 255, 255))
+        surface.blit(title, (120, 20))
+
+        stats = [
+            f"Workers: {self.workers}",
+            f"Vans: {self.vans}",
+            f"Van capacity: {self.vanCapacity} packages",
+            f"Money: ${int(self.money)}",
+            f"Packages shipped: {int(self.packagesShipped)}",
+            f"Income per second: ${self.getIncomePerSecond()}/sec",
+            f"Contract multiplier: x{self.contractMultiplier}"
+        ]
+
+        for i, stat in enumerate(stats):
+            text = self.infoFont.render(stat, True, (255, 255, 255))
+            surface.blit(text, (50, 40 + i*15))
+
+        prompt = self.myFont.render("Press I to close", True, (200, 200, 200))
+        surface.blit(prompt, (50, 200))
+
 
     def draw(self, surface):
 
@@ -162,15 +209,21 @@ class gameEngine(object):
         elif self.state == "results":
             self.drawResults(surface)
 
+        elif self.state == "upgrade":
+            self.drawUpgradeScreen(surface)
+
+        elif self.state == "info":
+            self.drawInfoScreen(surface)
+
         pygame.transform.scale(surface, self.UPSCALED, self.screen)
         pygame.display.flip()
 
     def updateWarehouse(self, seconds):
-        if self.dragging:
-            mouse = vec(*pygame.mouse.get_pos()) / self.SCALE
-            target = mouse - self.dragOffset
-            direction = target - self.kirby.position
-            self.kirby.velocity = direction * 10 # movement speed
+        income = self.getIncomePerSecond() * seconds
+        self.money += income
+
+        packages = self.getPackagesDeliveredPerSecond() * seconds
+        self.packagesShipped += packages
 
         self.kirby.update(seconds, self.walls)
 
@@ -208,6 +261,7 @@ class gameEngine(object):
         drawable.CAMERA_OFFSET[1] = max(0, min(drawable.CAMERA_OFFSET[1], maxY))
 
     def handleEvent(self, event):
+        # movement keys
         if event.type == pygame.KEYDOWN:
             if event.key == pygame.K_RIGHT:
                 self.kirby.velocity[0] = 50
@@ -217,17 +271,49 @@ class gameEngine(object):
                 self.kirby.velocity[1] = -50
             if event.key == pygame.K_DOWN:
                 self.kirby.velocity[1] = 50
+
+            # interact with zone
             if event.key == pygame.K_e and self.currentZone:
-                if self.currentZone == "sorting":
+                zoneName = self.currentZone.name
+                if zoneName == "Sorting Area":
                     self.startMinigame("sorting")
+                if zoneName == "Upgrade Station":
+                    self.state = "upgrade"
                 else:
                     self.money += 1
                     self.packagesShipped += 1
+            
+            # exit results screen
+            if self.state == "results" and event.key == pygame.K_SPACE:
+                self.state = "warehouse"
+                self.currentMinigame = None
+                self.resultsData = None
+
+            # upgrade screen input
+            if self.state == "upgrade":
+                if event.key == pygame.K_BACKSPACE:
+                    self.state = "warehouse"
+                elif event.key == pygame.K_1:
+                    self.purchaseUpgrade("+1 Extra Workers", 50)
+                elif event.key == pygame.K_2:
+                    self.purchaseUpgrade("+2 Extra Van Capacity", 100)
+                elif event.key == pygame.K_3:
+                    self.purchaseUpgrade("+1 Extra Van", 150)
+
+            #toggle info screen
+            if event.key == pygame.K_i:
+                if self.state == "info":
+                    self.state = "warehouse"
+                elif self.state == "warehouse":
+                    self.state = "info"
+        # release keys
         if event.type == pygame.KEYUP:
             if event.key in (pygame.K_RIGHT, pygame.K_LEFT):
                 self.kirby.velocity[0] = 0
             if event.key in (pygame.K_UP, pygame.K_DOWN):
                 self.kirby.velocity[1] = 0
+        
+        # mouse handling
         if event.type == pygame.MOUSEBUTTONDOWN:
             mouse = vec(*event.pos) / self.SCALE
             kirbyRect = self.kirby.image.get_rect(topleft=self.kirby.position)
@@ -242,13 +328,6 @@ class gameEngine(object):
         if self.state == "minigame":
             self.currentMinigame.handleEvent(event)
             return
-        if self.state == "results":
-            if event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_SPACE:
-                    self.state = "warehouse"
-                    self.currentMinigame = None
-                    self.resultsData = None
-
 
         drawable.CAMERA_OFFSET = self.kirby.position + vec(*self.kirby.rect.size) / 2 - vec(*self.RESOLUTION) / 2
 
@@ -260,11 +339,11 @@ class gameEngine(object):
         pygame.draw.rect(surface, (0,0,0), panelRect, 2)
 
         # Money
-        moneyText = self.uiFont.render(f"Money: ${self.money}", True, (0,0,0))
+        moneyText = self.uiFont.render(f"Money: ${int(self.money)}", True, (0,0,0))
         surface.blit(moneyText, (10, 8))
 
         # Packages shipped
-        packageText = self.uiFont.render(f"Packages: {self.packagesShipped}", True, (0,0,0))
+        packageText = self.uiFont.render(f"Packages: {int(self.packagesShipped)}", True, (0,0,0))
         surface.blit(packageText, (10, 20))
 
         # Interaction prompt
@@ -275,6 +354,26 @@ class gameEngine(object):
             y = self.RESOLUTION[1] - 30
 
             surface.blit(prompt, (x, y))
+
+    def drawUpgradeScreen(self, surface):
+        surface.fill((50, 50, 50))
+        
+        title = self.myFont.render("UPGRADE STATION", True, (255,255,255))
+        surface.blit(title, (120, 20))
+        
+        upgrades = [
+            ("+1 Extra Worker", 50),
+            ("+2 Van Capacity", 100),
+            ("+1 Extra Van", 150)
+        ]
+        
+        for i, (name, cost) in enumerate(upgrades):
+            text = self.myFont.render(f"{i+1}. {name} - ${cost}", True, (255,255,255))
+            surface.blit(text, (50, 60 + i*30))
+        
+        prompt = self.myFont.render("Press 1-3 to buy, backspace to exit", True, (200,200,200))
+        surface.blit(prompt, (50, 160))
+
     
     def createPlaceholder(self, size, color):
 
@@ -306,4 +405,16 @@ class gameEngine(object):
         with open("highscores.json", "w") as f:
             json.dump(self.highScores, f)
 
+    def purchaseUpgrade(self, name, cost):
+        if self.money >= cost:
+            self.money -= cost
+            print(f"Purchased upgrade: {name}")
+            if name == "+1 Extra Workers":
+                self.workers += 1
+            elif name == "+2 Van Capacity":
+                self.vanCapacity += 2
+            elif name == "+1 Extra Van":
+                self.vans += 1
+        else:
+            print("Not enough money!")
 
