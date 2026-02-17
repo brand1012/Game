@@ -11,7 +11,8 @@ class drawable(object):
         self.image = image
 
     def draw(self, surface):
-        surface.blit(self.image, pyVec(self.position) - drawable.CAMERA_OFFSET)
+        screenPos = self.position - drawable.CAMERA_OFFSET
+        surface.blit(self.image, pyVec(screenPos))
 
     def setPosition(self, newPosition):
         self.position = newPosition
@@ -219,4 +220,5 @@ class kirby(drawable):
         image = self.image
         if self.facing == "left":
             image = pygame.transform.flip(self.image, True, False)
-        surface.blit(image, pyVec(self.position) - drawable.CAMERA_OFFSET)
+        screenPos = self.position - drawable.CAMERA_OFFSET
+        surface.blit(image, pyVec(screenPos))
