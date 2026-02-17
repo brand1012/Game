@@ -31,6 +31,11 @@ class gameEngine(object):
 
         brick = self.spriteManager.getSprite("brick.png")
 
+        self.baseWorkerCost = 50
+        self.baseVanCost = 150
+        self.baseCapacityCost = 100
+        self.costGrowth = 1.15
+
         self.state = "warehouse"
         self.currentMinigame = None
         self.highScores = self.loadHighScores()
@@ -294,11 +299,11 @@ class gameEngine(object):
                 if event.key == pygame.K_BACKSPACE:
                     self.state = "warehouse"
                 elif event.key == pygame.K_1:
-                    self.purchaseUpgrade("+1 Extra Workers", 50)
+                    self.purchaseUpgrade("+1 Extra Worker")
                 elif event.key == pygame.K_2:
-                    self.purchaseUpgrade("+2 Extra Van Capacity", 100)
+                    self.purchaseUpgrade("+2 Van Capacity")
                 elif event.key == pygame.K_3:
-                    self.purchaseUpgrade("+1 Extra Van", 150)
+                    self.purchaseUpgrade("+1 Extra Van")
 
             #toggle info screen
             if event.key == pygame.K_i:
@@ -362,9 +367,9 @@ class gameEngine(object):
         surface.blit(title, (120, 20))
         
         upgrades = [
-            ("+1 Extra Worker", 50),
-            ("+2 Van Capacity", 100),
-            ("+1 Extra Van", 150)
+            ("+1 Extra Worker", self.getWorkerCost()),
+            ("+2 Van Capacity", self.getCapacityCost()),
+            ("+1 Extra Van", self.getVanCost())
         ]
         
         for i, (name, cost) in enumerate(upgrades):
@@ -405,16 +410,33 @@ class gameEngine(object):
         with open("highscores.json", "w") as f:
             json.dump(self.highScores, f)
 
-    def purchaseUpgrade(self, name, cost):
-        if self.money >= cost:
-            self.money -= cost
-            print(f"Purchased upgrade: {name}")
-            if name == "+1 Extra Workers":
+    def getWorkerCost(self):
+        return int(self.baseWorkerCost * (self.costGrowth ** self.workers))
+
+    def getVanCost(self):
+        return int(self.baseVanCost * (self.costGrowth ** self.vans))
+
+    def getCapacityCost(self):
+        upgradesOwned = self.vanCapacity // 2
+        return int(self.baseCapacityCost * (self.costGrowth ** upgradesOwned))
+
+    def purchaseUpgrade(self, name):
+        if name == "+1 Extra Worker":
+            cost = self.getWorkerCost()
+            if self.money >= cost:
+                self.money -= cost
                 self.workers += 1
-            elif name == "+2 Van Capacity":
+
+        elif name == "+2 Van Capacity":
+            cost = self.getCapacityCost()
+            if self.money >= cost:
+                self.money -= cost
                 self.vanCapacity += 2
-            elif name == "+1 Extra Van":
+
+        elif name == "+1 Extra Van":
+            cost = self.getVanCost()
+            if self.money >= cost:
+                self.money -= cost
                 self.vans += 1
-        else:
-            print("Not enough money!")
+
 
