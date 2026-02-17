@@ -3,6 +3,8 @@ from vector import vec, pyVec
 from drawable import drawable, mobile, wall, kirby
 from spriteManager import SpriteManager
 from zone import Zone
+from sortingMinigame import SortingMinigame
+import json
 
 class gameEngine(object):
     def __init__(self):
@@ -27,6 +29,10 @@ class gameEngine(object):
         self.dragOffset = vec(0, 0)
 
         brick = self.spriteManager.getSprite("brick.png")
+
+        self.state = "warehouse"
+        self.currentMinigame = None
+        self.highScores = self.loadHighScores()
 
         self.zones = [
 
@@ -107,7 +113,7 @@ class gameEngine(object):
 
         self.gameClock = pygame.time.Clock()
     
-    def draw(self, surface):
+    def drawWarehouse(self, surface):
         surface.fill((255,255,255))
         surface.blit(self.floor, -drawable.CAMERA_OFFSET)
 
@@ -117,11 +123,49 @@ class gameEngine(object):
         self.kirby.draw(surface)
 
         self.drawUI(surface)
+    
+    def drawResults(self, surface):
+        surface.fill((30,30,30))
+
+        title = self.myFont.render("SHIFT COMPLETE", True, (255,255,255))
+        surface.blit(title, (140, 30))
+
+        scoreText = self.myFont.render(
+            f"Score: {self.resultsData['score']}", True, (255,255,255))
+        surface.blit(scoreText, (140, 70))
+
+        moneyText = self.myFont.render(
+            f"Money earned: ${self.resultsData['money']}", True, (255,255,255))
+        surface.blit(moneyText, (140, 100))
+
+        highText = self.myFont.render(
+            f"High Score: {self.resultsData['highScore']}",
+            True,
+            (255,255,255)
+        )
+        surface.blit(highText, (140, 130))
+
+
+        continueText = self.myFont.render(
+            "Press SPACE to continue", True, (200,200,200))
+        surface.blit(continueText, (120, 170))
+
+
+    def draw(self, surface):
+
+        if self.state == "warehouse":
+            self.drawWarehouse(surface)
+
+        elif self.state == "minigame":
+            self.currentMinigame.draw(surface)
+
+        elif self.state == "results":
+            self.drawResults(surface)
 
         pygame.transform.scale(surface, self.UPSCALED, self.screen)
         pygame.display.flip()
 
-    def update(self, seconds):
+    def updateWarehouse(self, seconds):
         if self.dragging:
             mouse = vec(*pygame.mouse.get_pos()) / self.SCALE
             target = mouse - self.dragOffset
@@ -130,12 +174,31 @@ class gameEngine(object):
 
         self.kirby.update(seconds, self.walls)
 
+        self.showInteractPrompt = False
+        self.currentZone = None
+
+        for zone in self.zones:
+            if zone.rect.colliderect(self.kirby.rect):
+                self.showInteractPrompt = True
+                self.currentZone = zone
+                break
+
         drawable.CAMERA_OFFSET = (
             self.kirby.position +
             vec(*self.kirby.rect.size) / 2 -
             vec(*self.RESOLUTION) / 2
         )
+
         self.clampCamera()
+
+    def update(self, seconds):
+
+        if self.state == "warehouse":
+            self.updateWarehouse(seconds)
+
+        elif self.state == "minigame":
+            self.currentMinigame.update(seconds)
+
 
     def clampCamera(self):
         maxX = self.WORLD_SIZE[0] - self.RESOLUTION[0]
@@ -154,6 +217,12 @@ class gameEngine(object):
                 self.kirby.velocity[1] = -50
             if event.key == pygame.K_DOWN:
                 self.kirby.velocity[1] = 50
+            if event.key == pygame.K_e and self.currentZone:
+                if self.currentZone == "sorting":
+                    self.startMinigame("sorting")
+                else:
+                    self.money += 1
+                    self.packagesShipped += 1
         if event.type == pygame.KEYUP:
             if event.key in (pygame.K_RIGHT, pygame.K_LEFT):
                 self.kirby.velocity[0] = 0
@@ -170,6 +239,16 @@ class gameEngine(object):
             self.dragging = False
             self.kirby.velocity[0] = 0
             self.kirby.velocity[1] = 0
+        if self.state == "minigame":
+            self.currentMinigame.handleEvent(event)
+            return
+        if self.state == "results":
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_SPACE:
+                    self.state = "warehouse"
+                    self.currentMinigame = None
+                    self.resultsData = None
+
 
         drawable.CAMERA_OFFSET = self.kirby.position + vec(*self.kirby.rect.size) / 2 - vec(*self.RESOLUTION) / 2
 
@@ -206,5 +285,25 @@ class gameEngine(object):
 
         return surf
 
+    def startMinigame(self, type):
+
+        self.currentMinigameType = type
+
+        if type == "sorting":
+            self.currentMinigame = SortingMinigame(self)
+            self.state = "minigame"
+        pass
+
+    def loadHighScores(self):
+        try:
+            with open("highscores.json", "r") as f:
+                return json.load(f)
+        except:
+            return {}
+    
+    def saveHighScores(self):
+
+        with open("highscores.json", "w") as f:
+            json.dump(self.highScores, f)
 
 
