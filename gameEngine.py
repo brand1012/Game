@@ -38,6 +38,13 @@ class gameEngine(object):
             wall(vec(104, 88), brick),
         ]
 
+        # ----- UI / Tycoon Stats -----
+        self.money = 0
+        self.packagesShipped = 0
+        self.showInteractPrompt = False
+
+        self.uiFont = pygame.font.SysFont("Arial", 20, bold=True)
+
         self.gameClock = pygame.time.Clock()
     
     def draw(self, surface):
@@ -49,6 +56,8 @@ class gameEngine(object):
 
         for wall in self.walls:
             wall.draw(surface)
+
+        self.drawUI(surface)
 
         pygame.transform.scale(surface, self.UPSCALED, self.screen)
         pygame.display.flip()
@@ -104,6 +113,30 @@ class gameEngine(object):
             self.kirby.velocity[1] = 0
 
         drawable.CAMERA_OFFSET = self.kirby.position + vec(*self.kirby.rect.size) / 2 - vec(*self.RESOLUTION) / 2
+
+    def drawUI(self, surface):
+
+        # Background panel
+        panelRect = pygame.Rect(5, 5, 180, 60)
+        pygame.draw.rect(surface, (220,220,220), panelRect)
+        pygame.draw.rect(surface, (0,0,0), panelRect, 2)
+
+        # Money
+        moneyText = self.uiFont.render(f"Money: ${self.money}", True, (0,0,0))
+        surface.blit(moneyText, (10, 10))
+
+        # Packages shipped
+        packageText = self.uiFont.render(f"Packages: {self.packagesShipped}", True, (0,0,0))
+        surface.blit(packageText, (10, 35))
+
+        # Interaction prompt
+        if self.showInteractPrompt:
+            prompt = self.uiFont.render("Press E to interact", True, (0,0,0))
+
+            x = (self.RESOLUTION[0] - prompt.get_width()) // 2
+            y = self.RESOLUTION[1] - 30
+
+            surface.blit(prompt, (x, y))
 
 
 
