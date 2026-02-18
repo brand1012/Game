@@ -220,5 +220,6 @@ class kirby(drawable):
         image = self.image
         if self.facing == "left":
             image = pygame.transform.flip(self.image, True, False)
+            image.set_colorkey(image.get_at((0,0)))
         screenPos = self.position - drawable.CAMERA_OFFSET
         surface.blit(image, pyVec(screenPos))
