@@ -36,9 +36,9 @@ class gameEngine(object):
         brick = self.spriteManager.getSprite("brick.png")
 
         self.baseWorkerCost = 10
-        self.baseCapacityCost = 20
-        self.baseVanCost = 50
-        self.costGrowth = 1.15
+        self.baseCapacityCost = 50
+        self.baseVanCost = 200
+        self.costGrowth = 1.5
 
         self.state = "warehouse"
         self.currentMinigame = None
