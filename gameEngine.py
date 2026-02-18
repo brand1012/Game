@@ -6,6 +6,10 @@ from zone import Zone
 from sortingMinigame import SortingMinigame
 import json
 
+'''
+    next steps: 1) add saving
+                2) clean this up, separate all the state into individual files!
+'''
 class gameEngine(object):
     def __init__(self):
         pygame.init()
@@ -31,9 +35,9 @@ class gameEngine(object):
 
         brick = self.spriteManager.getSprite("brick.png")
 
-        self.baseWorkerCost = 50
-        self.baseVanCost = 150
-        self.baseCapacityCost = 100
+        self.baseWorkerCost = 10
+        self.baseCapacityCost = 20
+        self.baseVanCost = 50
         self.costGrowth = 1.15
 
         self.state = "warehouse"
@@ -44,6 +48,10 @@ class gameEngine(object):
         self.vans = 1
         self.vanCapacity = 1
         self.contractMultiplier = 1
+
+        self.stockValue = 100
+        self.stockHistory = [self.stockValue]
+        self.stockTimer = 0
 
         self.zones = [
 
@@ -220,6 +228,9 @@ class gameEngine(object):
         elif self.state == "info":
             self.drawInfoScreen(surface)
 
+        elif self.state == "stock":
+            self.drawStockGraph(surface)
+
         pygame.transform.scale(surface, self.UPSCALED, self.screen)
         pygame.display.flip()
 
@@ -229,6 +240,21 @@ class gameEngine(object):
 
         packages = self.getPackagesDeliveredPerSecond() * seconds
         self.packagesShipped += packages
+
+        self.stockTimer += seconds
+
+        if self.stockTimer >= 2: # update every 2 seconds
+            self.stockTimer = 0
+            
+            growth = self.getIncomePerSecond() * 0.01
+            
+            self.stockValue += growth
+            
+            self.stockHistory.append(self.stockValue)
+            
+            if len(self.stockHistory) > 200:
+                self.stockHistory.pop(0)
+
 
         self.kirby.update(seconds, self.walls)
 
@@ -311,6 +337,14 @@ class gameEngine(object):
                     self.state = "warehouse"
                 elif self.state == "warehouse":
                     self.state = "info"
+
+            #toggle stock screen
+            if event.key == pygame.K_s:
+                if self.state == "stock":
+                    self.state = "warehouse"
+                elif self.state == "warehouse":
+                    self.state = "stock"
+
         # release keys
         if event.type == pygame.KEYUP:
             if event.key in (pygame.K_RIGHT, pygame.K_LEFT):
@@ -438,5 +472,96 @@ class gameEngine(object):
             if self.money >= cost:
                 self.money -= cost
                 self.vans += 1
+
+    def drawStockGraph(self, surface):
+
+        rect = pygame.Rect(50, 50, 300, 120)
+
+        # Colors
+        bg = (25, 25, 25)
+        border = (200, 200, 200)
+        grid = (60, 60, 60)
+        lineColor = (0, 220, 120)
+        textColor = (0, 0, 0)
+
+        font = pygame.font.SysFont(None, 16)
+
+        # Background
+        pygame.draw.rect(surface, bg, rect)
+        pygame.draw.rect(surface, border, rect, 2)
+
+        if len(self.stockHistory) < 2:
+            return
+
+        # Padding in the graph
+        pad = 10
+        graphRect = rect.inflate(-pad*2, -pad*2)
+
+        minVal = min(self.stockHistory)
+        maxVal = max(self.stockHistory)
+
+        # Add vertical margin so line doesn't touch borders
+        margin = (maxVal - minVal) * 0.1
+        if margin == 0:
+            margin = 1
+
+        minVal -= margin
+        maxVal += margin
+
+        rangeVal = maxVal - minVal
+
+        # Draw horizontal gridlines + labels
+        gridLines = 4
+        for i in range(gridLines + 1):
+
+            t = i / gridLines
+            y = graphRect.bottom - t * graphRect.height
+
+            pygame.draw.line(surface, grid,
+                (graphRect.left, y),
+                (graphRect.right, y))
+
+            value = minVal + t * rangeVal
+
+            label = font.render(f"{value:.1f}", True, textColor)
+            surface.blit(label, (rect.right + 5, y - 8))
+
+        # Build graph points
+        points = []
+        for i, value in enumerate(self.stockHistory):
+
+            t = i / (len(self.stockHistory) - 1)
+
+            x = graphRect.left + t * graphRect.width
+
+            normalized = (value - minVal) / rangeVal
+
+            y = graphRect.bottom - normalized * graphRect.height
+
+            points.append((x, y))
+
+        # Fill area under curve
+        fillPoints = points.copy()
+        fillPoints.append((points[-1][0], graphRect.bottom))
+        fillPoints.append((points[0][0], graphRect.bottom))
+
+        pygame.draw.polygon(surface, (0,220,120), fillPoints)
+
+        # Draw main line
+        pygame.draw.lines(surface, lineColor, False, points, 2)
+
+        # Draw axes
+        pygame.draw.line(surface, border,
+            (graphRect.left, graphRect.bottom),
+            (graphRect.right, graphRect.bottom), 2)
+
+        pygame.draw.line(surface, border,
+            (graphRect.left, graphRect.top),
+            (graphRect.left, graphRect.bottom), 2)
+
+        # Draw latest price label
+        latest = self.stockHistory[-1]
+        label = font.render(f"${latest:.2f}", True, (255,255,255))
+        surface.blit(label, (rect.x, rect.y - 18))
 
 
