@@ -26,7 +26,7 @@ class IdleState(State):
             kirby.changeState(WalkState())
 
 class WalkState(State):
-    SPEED = 60
+    SPEED = 126
 
     def enter(self, kirby):
         kirby.setAnimation("walk")
@@ -46,8 +46,10 @@ class WalkState(State):
 
         if keys[pygame.K_UP]:
             yVelo = -self.SPEED
+            kirby.facing = "up"
         elif keys[pygame.K_DOWN]:
             yVelo = self.SPEED
+            kirby.facing = "down"
 
         kirby.velocity = vec(xVelo, yVelo)
 
