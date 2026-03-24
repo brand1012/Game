@@ -1,5 +1,5 @@
-1) Refactor the classes; classes like drawable.py or gameEngine.py or kirbystates are too long and difficult to parse
-2) Change anything named 'kirby' to 'manager' or something similar - ask peers for main character name ideas
+# 1) Refactor the classes; classes like drawable.py or gameEngine.py or kirbystates are too long and difficult to parse
+# 2) Change anything named 'kirby' to 'manager' or something similar - ask peers for main character name ideas
 3) Implement easter egg for when the main character gets hit by a car, he fades and then respawns in the office
 4) Add more minigames
 5) Add time-based crises
