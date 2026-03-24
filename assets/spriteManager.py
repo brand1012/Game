@@ -10,7 +10,7 @@ Will load entire sprite sheets if given an offset.
 from pygame import image, Surface, Rect, SRCALPHA
 from pygame.transform import scale_by
 from os.path import join
-from vector import vec, pyVec
+from utils.vector import vec, pyVec
 
 class SpriteManager(object):
     """A singleton factory class to create and store sprites on demand.

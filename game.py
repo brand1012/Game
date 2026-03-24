@@ -1,17 +1,14 @@
 import pygame
-import sys
-from gameEngine import gameEngine
+from gameEngine import GameEngine
 
 def main():
+    game = GameEngine()
+    running = True
 
-    game = gameEngine()
-    RUNNING = True
-
-    while RUNNING:
-
+    while running:
         for event in pygame.event.get():
             if event.type == pygame.QUIT or (event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE):
-                RUNNING = False
+                running = False
             else:
                 game.handleEvent(event)
 
