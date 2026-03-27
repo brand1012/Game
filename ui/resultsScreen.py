@@ -13,5 +13,9 @@ def drawResults(game, surface):
     highText = game.myFont.render(f"High Score: {game.resultsData['highScore']}", True, (255, 255, 255))
     surface.blit(highText, (140, 130))
 
+    if game.resultsData.get("isNewHigh"):
+        newHighText = game.infoFont.render("NEW HIGH SCORE!", True, (255, 220, 110))
+        surface.blit(newHighText, (142, 154))
+
     continueText = game.myFont.render("Press SPACE to continue", True, (200, 200, 200))
-    surface.blit(continueText, (120, 170))
+    surface.blit(continueText, (120, 174))

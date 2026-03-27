@@ -2,13 +2,30 @@ import pygame
 
 
 def drawStockGraph(game, surface):
-    rect = pygame.Rect(50, 50, 300, 120)
+    surface.fill((17, 22, 28))
 
-    bg = (25, 25, 25)
-    border = (200, 200, 200)
-    grid = (60, 60, 60)
-    lineColor = (0, 220, 120)
-    textColor = (0, 0, 0)
+    title = game.myFont.render("STOCK TRACKER", True, (255, 255, 255))
+    surface.blit(title, (12, 10))
+
+    currentValue = game.stockHistory[-1] if game.stockHistory else game.stockValue
+    currentLabel = game.infoFont.render(
+        f"Current value: ${currentValue:.2f}",
+        True,
+        (210, 230, 216),
+    )
+    surface.blit(
+        currentLabel,
+        (surface.get_width() - currentLabel.get_width() - 12, 14),
+    )
+
+    rect = pygame.Rect(50, 48, 300, 102)
+
+    bg = (24, 30, 38)
+    border = (214, 220, 226)
+    grid = (60, 68, 78)
+    fillColor = (18, 110, 70)
+    lineColor = (74, 238, 153)
+    textColor = (236, 236, 236)
 
     font = pygame.font.SysFont(None, 16)
 
@@ -16,6 +33,11 @@ def drawStockGraph(game, surface):
     pygame.draw.rect(surface, border, rect, 2)
 
     if len(game.stockHistory) < 2:
+        closeHint = game.infoFont.render("Press S to close", True, (200, 200, 200))
+        surface.blit(
+            closeHint,
+            (surface.get_width() - closeHint.get_width() - 12, 176),
+        )
         return
 
     pad = 10
@@ -51,11 +73,35 @@ def drawStockGraph(game, surface):
     fillPoints.append((points[-1][0], graphRect.bottom))
     fillPoints.append((points[0][0], graphRect.bottom))
 
-    pygame.draw.polygon(surface, (0, 220, 120), fillPoints)
+    pygame.draw.polygon(surface, fillColor, fillPoints)
     pygame.draw.lines(surface, lineColor, False, points, 2)
-    pygame.draw.line(surface, border, (graphRect.left, graphRect.bottom), (graphRect.right, graphRect.bottom), 2)
-    pygame.draw.line(surface, border, (graphRect.left, graphRect.top), (graphRect.left, graphRect.bottom), 2)
+    pygame.draw.line(
+        surface,
+        border,
+        (graphRect.left, graphRect.bottom),
+        (graphRect.right, graphRect.bottom),
+        2,
+    )
+    pygame.draw.line(
+        surface,
+        border,
+        (graphRect.left, graphRect.top),
+        (graphRect.left, graphRect.bottom),
+        2,
+    )
 
     latest = game.stockHistory[-1]
-    label = font.render(f"${latest:.2f}", True, (255, 255, 255))
+    label = font.render(f"Latest: ${latest:.2f}", True, (255, 255, 255))
     surface.blit(label, (rect.x, rect.y - 18))
+
+    footer = game.infoFont.render(
+        "Track your warehouse performance over time.",
+        True,
+        (190, 190, 190),
+    )
+    surface.blit(footer, (12, 176))
+    closeHint = game.infoFont.render("Press S to close", True, (200, 200, 200))
+    surface.blit(
+        closeHint,
+        (surface.get_width() - closeHint.get_width() - 12, 176),
+    )
