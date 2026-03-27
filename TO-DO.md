@@ -10,7 +10,7 @@
 10) Add NPCs?
 
 FEEDBACK FROM PEER FEEDBACK DAY 2 (Mar 18):
-1) Player needs to know how to access info screen and stock
+# 1) Player needs to know how to access info screen and stock
 2) Add doors
 3) Make the walls look more 3d
 4) Spend money on snacks from vending machine, i.e. buy a monster = walk faster
