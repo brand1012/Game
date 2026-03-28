@@ -1,6 +1,7 @@
 import pygame
 
 import assets.spriteManager as spriteManager
+import minigames.semiUnloading as semiUnloading
 import minigames.sorting as sorting
 import systems.economy as economy
 import systems.highScores as highScores
@@ -75,6 +76,7 @@ class GameEngine(object):
         self.semiTruckWaves = []
         self.walls = []
         self.sortingPallets = []
+        self.loadingDockForklifts = []
         self.upgradeDesks = []
         self.buildWorldProps()
 
@@ -144,6 +146,8 @@ class GameEngine(object):
             if self.state == "warehouse" and event.key == pygame.K_e and self.currentInteraction:
                 if self.currentInteraction == "sorting":
                     self.startMinigame("sorting")
+                elif self.currentInteraction == "semiUnloading":
+                    self.startMinigame("semiUnloading")
                 elif self.currentInteraction == "upgrade":
                     self.state = "upgrade"
 
@@ -282,6 +286,7 @@ class GameEngine(object):
         self.semiTruckWaves = []
         self.walls = []
         self.sortingPallets = []
+        self.loadingDockForklifts = []
         self.upgradeDesks = []
 
         loadingDock.buildLoadingDock(self, self.getZone("Semi Unloading Dock"))
@@ -295,6 +300,14 @@ class GameEngine(object):
         self.showInteractPrompt = False
         self.currentInteraction = None
         interactionRect = self.player.interactionRect
+
+        if self.isSemiReadyForUnload():
+            for forklift in self.loadingDockForklifts:
+                targetRect = getattr(forklift, "interactionRect", forklift.rect)
+                if targetRect and interactionRect.colliderect(targetRect):
+                    self.showInteractPrompt = True
+                    self.currentInteraction = "semiUnloading"
+                    return
 
         sortingZone = self.getZone("Sorting Area")
         if sortingZone.rect.colliderect(interactionRect):
@@ -316,9 +329,18 @@ class GameEngine(object):
         if gameType == "sorting":
             self.currentMinigame = sorting.SortingMinigame(self)
             self.state = "minigame"
+        elif gameType == "semiUnloading":
+            self.currentMinigame = semiUnloading.SemiUnloadingMinigame(self)
+            self.state = "minigame"
 
     def purchaseUpgrade(self, name):
         economy.purchaseUpgrade(self, name)
+
+    def isSemiReadyForUnload(self):
+        for rig in self.semiTruckRigs:
+            if rig.active and rig.startDelay <= 0 and getattr(rig, "pauseTimer", 0) > 0:
+                return True
+        return False
 
 
 gameEngine = GameEngine

@@ -15,3 +15,10 @@ FEEDBACK FROM PEER FEEDBACK DAY 2 (Mar 18):
 3) Make the walls look more 3d
 4) Spend money on snacks from vending machine, i.e. buy a monster = walk faster
 5) make it so you can click instead of just pressing e?
+
+FEEDBACK FROM MILESTONE 2 MEETING (Mar 27):
+1) Make the game resizable to screen? You can obtain the screen resolution from os, pygame.display.Info(). Set upscaled to be the resolution of the montitor
+2) 
+3) 
+4) 
+5) 

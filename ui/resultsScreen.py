@@ -1,8 +1,10 @@
 def drawResults(game, surface):
     surface.fill((30, 30, 30))
 
-    title = game.myFont.render("SHIFT COMPLETE", True, (255, 255, 255))
-    surface.blit(title, (140, 30))
+    resultType = game.resultsData.get("type")
+    titleText = "DOCK SHIFT COMPLETE" if resultType == "semiUnloading" else "SHIFT COMPLETE"
+    title = game.myFont.render(titleText, True, (255, 255, 255))
+    surface.blit(title, ((surface.get_width() - title.get_width()) // 2, 30))
 
     scoreText = game.myFont.render(f"Score: {game.resultsData['score']}", True, (255, 255, 255))
     surface.blit(scoreText, (140, 70))

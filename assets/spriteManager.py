@@ -63,6 +63,7 @@ class SpriteManager(object):
         "freight/Freight-8.png",
         "freight/Freight-9.png",
         "freight/Freight-10.png",
+        "WarehouseV2.png",
         "Office-Furniture-Pixel-Art/Big-Office-Printer.png",
         "Office-Furniture-Pixel-Art/Big-Round-Table.png",
         "Office-Furniture-Pixel-Art/Bookshelf.png",
