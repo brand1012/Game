@@ -1,3 +1,12 @@
+import pygame
+
+
+class InteractionZone(object):
+    def __init__(self, interactionRect):
+        self.interactionRect = interactionRect
+        self.rect = None
+
+
 def buildStorageZone(game, zone):
     conveyorFrameRects = [(0, 0, 49, 15), (49, 0, 49, 15), (98, 0, 49, 15)]
     conveyorSize = (120, 30)
@@ -32,3 +41,11 @@ def buildStorageZone(game, zone):
                 loopStartX=loopStartX,
                 loopEndX=loopEndX,
             )
+
+    controlRect = pygame.Rect(
+        int(startX) - 10,
+        int(pairYPositions[0]) - 10,
+        int(pairWidth) + 20,
+        int(pairYPositions[-1] - pairYPositions[0] + conveyorSize[1]) + 20,
+    )
+    game.storageControls.append(InteractionZone(controlRect))

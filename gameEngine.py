@@ -1,11 +1,10 @@
 import pygame
 
 import assets.spriteManager as spriteManager
-import minigames.semiUnloading as semiUnloading
-import minigames.sorting as sorting
 import systems.economy as economy
 import systems.highScores as highScores
 import ui.infoScreen as infoScreen
+import ui.mainMenu as mainMenu
 import ui.resultsScreen as resultsScreen
 import ui.stockScreen as stockScreen
 import ui.upgradeScreen as upgradeScreen
@@ -23,7 +22,19 @@ from characters.drawable import Drawable
 from characters.player import Player
 from characters.props import AnimatedProp, LoopingProp, Prop
 from characters.vehicles import LaneVehicle
+from minigames.conveyorRouting import ConveyorRoutingMinigame
+from minigames.semiUnloading import SemiUnloadingMinigame
+from minigames.sorting import SortingMinigame
+from minigames.spillCleanup import SpillCleanupMinigame
 from utils.vector import vec
+
+
+ACTIVITY_FACTORIES = {
+    "sorting": SortingMinigame,
+    "semiUnloading": SemiUnloadingMinigame,
+    "conveyorRouting": ConveyorRoutingMinigame,
+    "spillCleanup": SpillCleanupMinigame,
+}
 
 
 class GameEngine(object):
@@ -51,22 +62,7 @@ class GameEngine(object):
         self.baseVanCost = 200
         self.costGrowth = 1.5
 
-        self.state = "warehouse"
-        self.currentMinigame = None
-        self.currentMinigameType = None
-        self.resultsData = None
         self.highScores = highScores.loadHighScores("highscores.json")
-
-        self.workers = 1
-        self.vans = 1
-        self.vanCapacity = 1
-        self.contractMultiplier = 1
-
-        self.stockValue = 100
-        self.stockHistory = [self.stockValue]
-        self.stockTimer = 0
-        self.trafficWaveVehicleCount = 4
-
         self.zones = layout.createZones()
 
         self.worldProps = []
@@ -77,18 +73,88 @@ class GameEngine(object):
         self.walls = []
         self.sortingPallets = []
         self.loadingDockForklifts = []
+        self.spillCleanupControls = []
+        self.storageControls = []
         self.upgradeDesks = []
-        self.buildWorldProps()
+
+        self.gameClock = pygame.time.Clock()
+        self.mainMenuIndex = 0
+        self.homeMenuIndex = 0
+        self.homePaymentStep = 10
+
+        self.mode = None
+        self.state = "mainMenu"
+        self.currentMinigame = None
+        self.currentMinigameType = None
+        self.resultsData = None
+        self.currentEmergencyDef = None
+        self.currentEmergencyOutcome = None
+        self.daySummaryData = None
+        self.dialogueData = None
+        self.dialogueAction = None
+        self.campaign = None
+        self.household = None
+
+        self.resetRuntimeState()
+
+    def resetRuntimeState(self):
+        self.workers = 1
+        self.vans = 1
+        self.vanCapacity = 1
+        self.contractMultiplier = 1
+        self.stockValue = 100
+        self.stockHistory = [self.stockValue]
+        self.stockTimer = 0
+        self.trafficWaveVehicleCount = 4
 
         self.money = 0
         self.packagesShipped = 0
         self.showInteractPrompt = False
         self.currentInteraction = None
 
-        self.gameClock = pygame.time.Clock()
+        self.currentMinigame = None
+        self.currentMinigameType = None
+        self.resultsData = None
+        self.currentEmergencyDef = None
+        self.currentEmergencyOutcome = None
+        self.daySummaryData = None
+        self.dialogueData = None
+        self.dialogueAction = None
+
+        self.player.position = vec(500, 600)
+        self.player.velocity = vec(0, 0)
+        self.player.updateRect()
+        self.buildWorldProps()
+        self.centerCameraOnPlayer()
+        self.clampCamera()
+
+    def startPracticeShift(self):
+        self.resetRuntimeState()
+        self.mode = "practice"
+        self.campaign = None
+        self.household = None
+        self.mainMenuIndex = 0
+        self.state = "warehouse"
+
+    def returnToMenu(self):
+        self.mode = None
+        self.campaign = None
+        self.household = None
+        self.currentEmergencyDef = None
+        self.currentEmergencyOutcome = None
+        self.daySummaryData = None
+        self.dialogueData = None
+        self.dialogueAction = None
+        self.currentMinigame = None
+        self.currentMinigameType = None
+        self.resultsData = None
+        self.mainMenuIndex = 0
+        self.state = "mainMenu"
 
     def draw(self, surface):
-        if self.state == "warehouse":
+        if self.state == "mainMenu":
+            mainMenu.drawMainMenu(self, surface)
+        elif self.state == "warehouse":
             warehouse.drawWarehouse(self, surface)
         elif self.state == "minigame":
             self.currentMinigame.draw(surface)
@@ -110,10 +176,7 @@ class GameEngine(object):
         economy.updateStockHistory(self, seconds)
 
         activeVehicleWalls = [vehicle for vehicle in self.laneVehicles if vehicle.active and vehicle.rect]
-        activeSemiWalls = [
-            rig for rig in self.semiTruckRigs
-            if rig.active and getattr(rig, "rect", None)
-        ]
+        activeSemiWalls = [rig for rig in self.semiTruckRigs if rig.active and getattr(rig, "rect", None)]
         collisionWalls = self.walls + activeVehicleWalls + activeSemiWalls
 
         self.player.update(seconds, collisionWalls)
@@ -131,30 +194,55 @@ class GameEngine(object):
     def update(self, seconds):
         if self.state == "warehouse":
             self.updateWarehouse(seconds)
-        elif self.state == "minigame":
+        elif self.state == "minigame" and self.currentMinigame:
             self.currentMinigame.update(seconds)
+
+    def applyResultsAndContinue(self):
+        self.currentMinigame = None
+        self.currentMinigameType = None
+        self.resultsData = None
+        self.state = "warehouse"
 
     def clampCamera(self):
         maxX = self.WORLD_SIZE[0] - self.RESOLUTION[0]
         maxY = self.WORLD_SIZE[1] - self.RESOLUTION[1]
-
         Drawable.CAMERA_OFFSET[0] = max(0, min(Drawable.CAMERA_OFFSET[0], maxX))
         Drawable.CAMERA_OFFSET[1] = max(0, min(Drawable.CAMERA_OFFSET[1], maxY))
 
-    def handleEvent(self, event):
-        if event.type == pygame.KEYDOWN:
-            if self.state == "warehouse" and event.key == pygame.K_e and self.currentInteraction:
-                if self.currentInteraction == "sorting":
-                    self.startMinigame("sorting")
-                elif self.currentInteraction == "semiUnloading":
-                    self.startMinigame("semiUnloading")
-                elif self.currentInteraction == "upgrade":
-                    self.state = "upgrade"
+    def handleMainMenuEvent(self, event):
+        options = 2
+        if event.key == pygame.K_UP:
+            self.mainMenuIndex = (self.mainMenuIndex - 1) % options
+        elif event.key == pygame.K_DOWN:
+            self.mainMenuIndex = (self.mainMenuIndex + 1) % options
+        elif event.key == pygame.K_RETURN:
+            if self.mainMenuIndex == 0:
+                self.startPracticeShift()
+            else:
+                pygame.event.post(pygame.event.Event(pygame.QUIT))
 
-            if self.state == "results" and event.key == pygame.K_SPACE:
-                self.state = "warehouse"
-                self.currentMinigame = None
-                self.resultsData = None
+    def handleWarehouseHotkeys(self, event):
+        if event.key == pygame.K_i:
+            self.state = "info" if self.state == "warehouse" else "warehouse"
+            return True
+        if event.key == pygame.K_s:
+            self.state = "stock" if self.state == "warehouse" else "warehouse"
+            return True
+        return False
+
+    def handleEvent(self, event):
+        if self.state == "minigame" and self.currentMinigame:
+            self.currentMinigame.handleEvent(event)
+            return
+
+        if event.type == pygame.KEYDOWN:
+            if self.state == "mainMenu":
+                self.handleMainMenuEvent(event)
+                return
+
+            if self.state == "results" and event.key in (pygame.K_SPACE, pygame.K_RETURN):
+                self.applyResultsAndContinue()
+                return
 
             if self.state == "upgrade":
                 if event.key == pygame.K_BACKSPACE:
@@ -165,18 +253,22 @@ class GameEngine(object):
                     self.purchaseUpgrade("+2 Van Capacity")
                 elif event.key == pygame.K_3:
                     self.purchaseUpgrade("+1 Extra Van")
+                return
 
-            if event.key == pygame.K_i:
-                if self.state == "info":
-                    self.state = "warehouse"
-                elif self.state == "warehouse":
-                    self.state = "info"
+            if self.state in ("warehouse", "info", "stock") and self.handleWarehouseHotkeys(event):
+                return
 
-            if event.key == pygame.K_s:
-                if self.state == "stock":
-                    self.state = "warehouse"
-                elif self.state == "warehouse":
-                    self.state = "stock"
+            if self.state == "warehouse" and event.key == pygame.K_e and self.currentInteraction:
+                if self.currentInteraction == "sorting":
+                    self.startActivity("sorting")
+                elif self.currentInteraction == "semiUnloading":
+                    self.startActivity("semiUnloading")
+                elif self.currentInteraction == "conveyorRouting":
+                    self.startActivity("conveyorRouting")
+                elif self.currentInteraction == "spillCleanup":
+                    self.startActivity("spillCleanup")
+                elif self.currentInteraction == "upgrade":
+                    self.state = "upgrade"
 
         if self.state == "warehouse" and event.type == pygame.KEYUP:
             if event.key in (pygame.K_RIGHT, pygame.K_LEFT):
@@ -188,11 +280,25 @@ class GameEngine(object):
             self.player.velocity[0] = 0
             self.player.velocity[1] = 0
 
-        if self.state == "minigame":
-            self.currentMinigame.handleEvent(event)
-            return
+    def buildActivity(self, activityId):
+        factory = ACTIVITY_FACTORIES.get(activityId)
+        if not factory:
+            raise ValueError("Unknown activity id: {0}".format(activityId))
 
-        self.centerCameraOnPlayer()
+        settings = {}
+        if activityId == "spillCleanup":
+            settings = {
+                "quotaKey": "spillCleanup",
+                "isEmergency": False,
+                "recordHighScore": True,
+            }
+
+        return factory(self, settings=settings)
+
+    def startActivity(self, activityId):
+        self.currentMinigameType = activityId
+        self.currentMinigame = self.buildActivity(activityId)
+        self.state = "minigame"
 
     def centerCameraOnPlayer(self):
         Drawable.CAMERA_OFFSET = (
@@ -247,7 +353,6 @@ class GameEngine(object):
         image = pygame.transform.smoothscale(self.spriteManager.getSprite(fileName), size)
         worldProp = LoopingProp(position, image, speed, loopStartX, loopEndX)
         self.worldProps.append(worldProp)
-
         return worldProp
 
     def addLaneVehicle(
@@ -287,6 +392,8 @@ class GameEngine(object):
         self.walls = []
         self.sortingPallets = []
         self.loadingDockForklifts = []
+        self.spillCleanupControls = []
+        self.storageControls = []
         self.upgradeDesks = []
 
         loadingDock.buildLoadingDock(self, self.getZone("Semi Unloading Dock"))
@@ -309,6 +416,13 @@ class GameEngine(object):
                     self.currentInteraction = "semiUnloading"
                     return
 
+        for control in self.spillCleanupControls:
+            targetRect = getattr(control, "interactionRect", control.rect)
+            if targetRect and interactionRect.colliderect(targetRect):
+                self.showInteractPrompt = True
+                self.currentInteraction = "spillCleanup"
+                return
+
         sortingZone = self.getZone("Sorting Area")
         if sortingZone.rect.colliderect(interactionRect):
             for pallet in self.sortingPallets:
@@ -317,21 +431,18 @@ class GameEngine(object):
                     self.currentInteraction = "sorting"
                     return
 
+        for control in self.storageControls:
+            targetRect = getattr(control, "interactionRect", control.rect)
+            if targetRect and interactionRect.colliderect(targetRect):
+                self.showInteractPrompt = True
+                self.currentInteraction = "conveyorRouting"
+                return
+
         for desk in self.upgradeDesks:
             if desk.rect and interactionRect.colliderect(desk.rect):
                 self.showInteractPrompt = True
                 self.currentInteraction = "upgrade"
                 return
-
-    def startMinigame(self, gameType):
-        self.currentMinigameType = gameType
-
-        if gameType == "sorting":
-            self.currentMinigame = sorting.SortingMinigame(self)
-            self.state = "minigame"
-        elif gameType == "semiUnloading":
-            self.currentMinigame = semiUnloading.SemiUnloadingMinigame(self)
-            self.state = "minigame"
 
     def purchaseUpgrade(self, name):
         economy.purchaseUpgrade(self, name)

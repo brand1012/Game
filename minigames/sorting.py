@@ -6,13 +6,27 @@ import systems.highScores as highScores
 
 
 class SortingMinigame:
-    def __init__(self, game):
+    def __init__(self, game, settings=None):
         self.game = game
-        self.timer = 15
+        self.settings = settings or {}
+        self.activityId = self.settings.get("activityId", game.currentMinigameType)
+        self.quotaKey = self.settings.get("quotaKey", "sorting")
+        self.dayProgressDelta = self.settings.get("dayProgressDelta", 0.22)
+        self.isEmergency = self.settings.get("isEmergency", False)
+        self.recordHighScore = self.settings.get("recordHighScore", True)
+        self.resultLabel = self.settings.get("resultLabel", "SHIFT COMPLETE")
+        self.titleText = self.settings.get("title", "DRAG PALLETS TO THE RIGHT BAY")
+        self.instructionsText = self.settings.get(
+            "instructions",
+            "Sort each pallet by freight type: Crated, Metal, or Boxed",
+        )
+        self.timer = float(self.settings.get("timer", 15))
         self.score = 0
         self.font = game.myFont
         self.smallFont = game.infoFont
         self.palletSize = (78, 92)
+        self.scoreMoneyFactor = int(self.settings.get("scoreMoneyFactor", 5))
+        self.successThreshold = int(self.settings.get("successThreshold", 2 if self.isEmergency else 0))
 
         self.categories = [
             {"name": "Crated", "color": (195, 155, 90), "fileNames": ["freight/Freight-5.png", "freight/Freight-10.png"]},
@@ -51,16 +65,16 @@ class SortingMinigame:
         self.dragging = False
 
     def finishRound(self):
-        moneyEarned = max(0, self.score * 5)
+        moneyEarned = max(0, self.score * self.scoreMoneyFactor)
         delivered = max(0, self.score)
         self.game.money += moneyEarned
         self.game.packagesShipped += delivered
 
-        gameType = self.game.currentMinigameType
+        gameType = self.activityId
         previousHigh = self.game.highScores.get(gameType, 0)
         isNewHigh = self.score > previousHigh
 
-        if isNewHigh:
+        if isNewHigh and self.recordHighScore:
             self.game.highScores[gameType] = self.score
             highScores.saveHighScores(self.game.highScores, "highscores.json")
 
@@ -68,8 +82,15 @@ class SortingMinigame:
             "score": self.score,
             "money": moneyEarned,
             "highScore": self.game.highScores.get(gameType, 0),
-            "isNewHigh": isNewHigh,
+            "isNewHigh": isNewHigh and self.recordHighScore,
             "type": gameType,
+            "activityId": self.activityId,
+            "quotaKey": self.quotaKey,
+            "dayProgressDelta": self.dayProgressDelta,
+            "isEmergency": self.isEmergency,
+            "packages": delivered,
+            "success": self.score >= self.successThreshold,
+            "resultLabel": self.resultLabel,
         }
         self.game.state = "results"
 
@@ -123,9 +144,9 @@ class SortingMinigame:
 
     def draw(self, surface):
         surface.fill((20, 20, 24))
-        title = self.font.render("DRAG PALLETS TO THE RIGHT BAY", True, (255, 255, 255))
+        title = self.font.render(self.titleText, True, (255, 255, 255))
         surface.blit(title, (72, 10))
-        instructions = self.smallFont.render("Sort each pallet by freight type: Crated, Metal, or Boxed", True, (220, 220, 220))
+        instructions = self.smallFont.render(self.instructionsText, True, (220, 220, 220))
         surface.blit(instructions, (10, 28))
         for zone in self.dropZones:
             self.drawDropZone(surface, zone)

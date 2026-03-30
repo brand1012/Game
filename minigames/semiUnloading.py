@@ -15,12 +15,27 @@ class SemiUnloadingMinigame:
     LOADED_SPEED = 58
     COLLISION_COOLDOWN = 0.25
 
-    def __init__(self, game):
+    def __init__(self, game, settings=None):
         self.game = game
+        self.settings = settings or {}
+        self.activityId = self.settings.get("activityId", game.currentMinigameType)
+        self.quotaKey = self.settings.get("quotaKey", "semiUnloading")
+        self.dayProgressDelta = self.settings.get("dayProgressDelta", 0.26)
+        self.isEmergency = self.settings.get("isEmergency", False)
+        self.recordHighScore = self.settings.get("recordHighScore", True)
+        self.resultLabel = self.settings.get("resultLabel", "DOCK SHIFT COMPLETE")
+        self.titleText = self.settings.get("title", "UNLOAD THE SEMI")
+        self.instructionsText = self.settings.get(
+            "instructions",
+            "WASD / Arrows move   SPACE unload to the matching bay",
+        )
+        self.roundTime = float(self.settings.get("roundTime", self.ROUND_TIME))
+        self.manifestCount = int(self.settings.get("manifestCount", self.MANIFEST_COUNT))
+        self.moneyPerDelivered = int(self.settings.get("moneyPerDelivered", 12))
         self.font = game.myFont
         self.smallFont = game.infoFont
 
-        self.timer = self.ROUND_TIME
+        self.timer = self.roundTime
         self.delivered = 0
         self.collisions = 0
 
@@ -108,7 +123,7 @@ class SemiUnloadingMinigame:
                 self.palletCarrySize,
             )
 
-        self.manifest = [random.choice(list(self.spriteToCategory.keys())) for _ in range(self.MANIFEST_COUNT)]
+        self.manifest = [random.choice(list(self.spriteToCategory.keys())) for _ in range(self.manifestCount)]
         self.spawnIndex = 0
         self.trailerSlots = [None, None, None]
         self.carrying = None
@@ -271,7 +286,7 @@ class SemiUnloadingMinigame:
                 self.carrying = None
                 self.setFeedback("PALLET UNLOADED", (120, 255, 150))
                 self.triggerFlash((70, 220, 120))
-                if self.delivered >= self.MANIFEST_COUNT:
+                if self.delivered >= self.manifestCount:
                     self.finishRound()
                 return
 
@@ -301,15 +316,15 @@ class SemiUnloadingMinigame:
 
     def finishRound(self):
         finalScore = self.getFinalScore()
-        moneyEarned = self.delivered * 12
+        moneyEarned = self.delivered * self.moneyPerDelivered
         self.game.money += moneyEarned
         self.game.packagesShipped += self.delivered
 
-        gameType = self.game.currentMinigameType
+        gameType = self.activityId
         previousHigh = self.game.highScores.get(gameType, 0)
         isNewHigh = finalScore > previousHigh
 
-        if isNewHigh:
+        if isNewHigh and self.recordHighScore:
             self.game.highScores[gameType] = finalScore
             highScores.saveHighScores(self.game.highScores, "highscores.json")
 
@@ -317,8 +332,16 @@ class SemiUnloadingMinigame:
             "score": finalScore,
             "money": moneyEarned,
             "highScore": self.game.highScores.get(gameType, 0),
-            "isNewHigh": isNewHigh,
+            "isNewHigh": isNewHigh and self.recordHighScore,
             "type": gameType,
+            "activityId": self.activityId,
+            "quotaKey": self.quotaKey,
+            "dayProgressDelta": self.dayProgressDelta,
+            "isEmergency": self.isEmergency,
+            "packages": self.delivered,
+            "success": self.delivered >= self.manifestCount,
+            "resultLabel": self.resultLabel,
+            "safetyDelta": -self.collisions,
         }
         self.game.state = "results"
 
@@ -434,18 +457,14 @@ class SemiUnloadingMinigame:
         pygame.draw.rect(surface, (18, 18, 22), pygame.Rect(0, 0, 400, self.HUD_HEIGHT))
         pygame.draw.line(surface, (58, 58, 64), (0, self.HUD_HEIGHT - 1), (400, self.HUD_HEIGHT - 1), 1)
 
-        title = self.font.render("UNLOAD THE SEMI", True, (255, 255, 255))
+        title = self.font.render(self.titleText, True, (255, 255, 255))
         surface.blit(title, (10, 4))
 
-        instructions = self.smallFont.render(
-            "WASD / Arrows move   SPACE unload to the matching bay",
-            True,
-            (220, 220, 220),
-        )
+        instructions = self.smallFont.render(self.instructionsText, True, (220, 220, 220))
         surface.blit(instructions, (10, 19))
 
         palletText = self.smallFont.render(
-            "Pallets: {0}/{1}".format(self.delivered, self.MANIFEST_COUNT),
+            "Pallets: {0}/{1}".format(self.delivered, self.manifestCount),
             True,
             (255, 255, 255),
         )

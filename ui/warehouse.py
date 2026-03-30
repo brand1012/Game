@@ -6,6 +6,7 @@ from ui.hud import drawUI
 
 def drawVehicleLaneDetails(game, surface):
     stripeColor = (245, 229, 110)
+    phase = None
 
     for lane in [game.getZone("Vehicle Lane", 0), game.getZone("Vehicle Lane", 1)]:
         laneScreenX = int(lane.position[0] - Drawable.CAMERA_OFFSET[0])
@@ -15,7 +16,6 @@ def drawVehicleLaneDetails(game, surface):
         for yOffset in range(10, lane.size[1] - 10, 55):
             stripeRect = pygame.Rect(stripeX, laneScreenY + yOffset, 6, 28)
             pygame.draw.rect(surface, stripeColor, stripeRect)
-
 
 def drawWarehouse(game, surface):
     surface.fill((230, 230, 230))
@@ -36,4 +36,5 @@ def drawWarehouse(game, surface):
         semiTruckRigObject.draw(surface)
 
     game.player.draw(surface)
+
     drawUI(game, surface)

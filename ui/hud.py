@@ -3,7 +3,7 @@ import pygame
 
 def drawUI(game, surface):
     statsPanelRect = pygame.Rect(5, 5, 122, 34)
-    controlsPanelRect = pygame.Rect(133, 5, 56, 26)
+    controlsPanelRect = pygame.Rect(133, 5, 74, 26)
     controlFont = pygame.font.SysFont("Arial", 9, bold=True)
 
     pygame.draw.rect(surface, (236, 236, 236), statsPanelRect)

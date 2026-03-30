@@ -6,6 +6,12 @@ from characters.vehicles import SemiTruckRig
 from systems.traffic import SemiTruckWave
 
 
+class InteractionZone(object):
+    def __init__(self, interactionRect):
+        self.interactionRect = interactionRect
+        self.rect = None
+
+
 def buildLoadingDock(game, zone):
     spriteSheet = "2D_TOPDOWN_PIXELART_CARS.png"
     cabRect = (129, 0, 40, 96)
@@ -69,3 +75,14 @@ def buildLoadingDock(game, zone):
                 coneImage.copy(),
             )
         )
+
+    game.spillCleanupControls.append(
+        InteractionZone(
+            pygame.Rect(
+                zone.position[0] + zone.size[0] - 136,
+                zone.position[1] + 54,
+                120,
+                36,
+            )
+        )
+    )
