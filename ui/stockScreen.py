@@ -3,8 +3,14 @@ import pygame
 
 def drawStockGraph(game, surface):
     surface.fill((17, 22, 28))
+    isPostShiftStockScreen = (
+        game.mode == "story"
+        and game.campaign
+        and game.campaign.phase == "daySummary"
+    )
 
-    title = game.myFont.render("STOCK TRACKER", True, (255, 255, 255))
+    titleText = "COMPANY PRESSURE" if game.mode == "story" else "STOCK TRACKER"
+    title = game.myFont.render(titleText, True, (255, 255, 255))
     surface.blit(title, (12, 10))
 
     currentValue = game.stockHistory[-1] if game.stockHistory else game.stockValue
@@ -33,7 +39,8 @@ def drawStockGraph(game, surface):
     pygame.draw.rect(surface, border, rect, 2)
 
     if len(game.stockHistory) < 2:
-        closeHint = game.infoFont.render("Press S to close", True, (200, 200, 200))
+        closeLabel = "Press Enter or S for home" if isPostShiftStockScreen else "Press S to close"
+        closeHint = game.infoFont.render(closeLabel, True, (200, 200, 200))
         surface.blit(
             closeHint,
             (surface.get_width() - closeHint.get_width() - 12, 176),
@@ -94,13 +101,11 @@ def drawStockGraph(game, surface):
     label = font.render(f"Latest: ${latest:.2f}", True, (255, 255, 255))
     surface.blit(label, (rect.x, rect.y - 18))
 
-    footer = game.infoFont.render(
-        "Track your warehouse performance over time.",
-        True,
-        (190, 190, 190),
-    )
+    footerText = "Management uses this curve to justify tomorrow's expectations." if game.mode == "story" else "Track your warehouse performance over time."
+    footer = game.infoFont.render(footerText, True, (190, 190, 190))
     surface.blit(footer, (12, 176))
-    closeHint = game.infoFont.render("Press S to close", True, (200, 200, 200))
+    closeLabel = "Press Enter or S for home" if isPostShiftStockScreen else "Press S to close"
+    closeHint = game.infoFont.render(closeLabel, True, (200, 200, 200))
     surface.blit(
         closeHint,
         (surface.get_width() - closeHint.get_width() - 12, 176),

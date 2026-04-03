@@ -1,8 +1,17 @@
 import pygame
 
 import assets.spriteManager as spriteManager
+import minigames.registry as activityRegistry
+import systems.campaign as campaign
 import systems.economy as economy
 import systems.highScores as highScores
+import systems.saveData as saveData
+import systems.storyContent as storyContent
+import ui.briefingScreen as briefingScreen
+import ui.daySummaryScreen as daySummaryScreen
+import ui.dialogueScreen as dialogueScreen
+import ui.emergencyScreen as emergencyScreen
+import ui.homeScreen as homeScreen
 import ui.infoScreen as infoScreen
 import ui.mainMenu as mainMenu
 import ui.resultsScreen as resultsScreen
@@ -22,19 +31,10 @@ from characters.drawable import Drawable
 from characters.player import Player
 from characters.props import AnimatedProp, LoopingProp, Prop
 from characters.vehicles import LaneVehicle
-from minigames.conveyorRouting import ConveyorRoutingMinigame
-from minigames.semiUnloading import SemiUnloadingMinigame
-from minigames.sorting import SortingMinigame
-from minigames.spillCleanup import SpillCleanupMinigame
 from utils.vector import vec
 
 
-ACTIVITY_FACTORIES = {
-    "sorting": SortingMinigame,
-    "semiUnloading": SemiUnloadingMinigame,
-    "conveyorRouting": ConveyorRoutingMinigame,
-    "spillCleanup": SpillCleanupMinigame,
-}
+VALID_STORY_SAVE_PHASES = {"briefing", "warehouse", "daySummary", "home"}
 
 
 class GameEngine(object):
@@ -79,8 +79,11 @@ class GameEngine(object):
 
         self.gameClock = pygame.time.Clock()
         self.mainMenuIndex = 0
+        self.continueMenuIndex = 0
+        self.continueOptions = []
         self.homeMenuIndex = 0
         self.homePaymentStep = 10
+        self.canContinueStory = False
 
         self.mode = None
         self.state = "mainMenu"
@@ -91,11 +94,119 @@ class GameEngine(object):
         self.currentEmergencyOutcome = None
         self.daySummaryData = None
         self.dialogueData = None
-        self.dialogueAction = None
+        self.dialogueAction = ""
         self.campaign = None
         self.household = None
 
         self.resetRuntimeState()
+        self.refreshContinueOption()
+
+    def refreshContinueOption(self):
+        savePayload = saveData.loadGame()
+        self.canContinueStory = self.isValidStorySaveData(savePayload)
+
+    def getPhaseLabel(self, phase):
+        if phase == "warehouse":
+            return "In Shift"
+        if phase == "daySummary":
+            return "Summary"
+        if phase == "home":
+            return "Home"
+        return "Briefing"
+
+    def buildContinueOptions(self, savePayload):
+        options = []
+        snapshotsByDay = {}
+
+        for snapshot in savePayload.get("daySnapshots", []):
+            if not self.isValidStorySaveData(snapshot):
+                continue
+            snapshotCampaign = snapshot.get("campaign", {})
+            snapshotDay = int(snapshotCampaign.get("dayNumber", 0))
+            snapshotsByDay[snapshotDay] = snapshot
+
+        currentCampaign = savePayload.get("campaign", {})
+        currentDay = int(currentCampaign.get("dayNumber", 0))
+        currentPhase = currentCampaign.get("phase", "briefing")
+
+        if currentDay > 0 and self.isValidStorySaveData(savePayload) and currentDay not in snapshotsByDay:
+            snapshotsByDay[currentDay] = savePayload
+
+        for dayNumber in sorted(snapshotsByDay.keys()):
+            optionPayload = snapshotsByDay[dayNumber]
+            detail = "Start of day"
+            if dayNumber == currentDay and currentPhase != "briefing":
+                optionPayload = savePayload
+                detail = self.getPhaseLabel(currentPhase)
+
+            options.append(
+                {
+                    "dayNumber": dayNumber,
+                    "title": storyContent.get_day_beat(dayNumber)["title"],
+                    "detail": detail,
+                    "payload": optionPayload,
+                }
+            )
+
+        return options
+
+    def openContinueMenu(self):
+        savePayload = saveData.loadGame()
+        if not self.isValidStorySaveData(savePayload):
+            self.refreshContinueOption()
+            return
+
+        self.continueOptions = self.buildContinueOptions(savePayload)
+        if not self.continueOptions:
+            self.refreshContinueOption()
+            return
+
+        self.continueMenuIndex = len(self.continueOptions) - 1
+        self.state = "continueMenu"
+
+    def isValidStorySaveData(self, savePayload):
+        if not savePayload or savePayload.get("mode") != "story":
+            return False
+
+        campaignData = savePayload.get("campaign")
+        householdData = savePayload.get("household")
+        if not campaignData or not householdData:
+            return False
+
+        return campaignData.get("phase") in VALID_STORY_SAVE_PHASES
+
+    def getMainMenuOptions(self):
+        continueLabel = "Continue" if self.canContinueStory else "Continue (No Save)"
+        return [
+            ("Story Campaign", "story"),
+            ("Practice Shift", "practice"),
+            (continueLabel, "continue"),
+            ("Quit", "quit"),
+        ]
+
+    def syncHouseholdMoneyFromGame(self):
+        if self.household:
+            if not self.campaign or self.campaign.phase == "briefing":
+                self.household.moneyOnHand = int(self.money)
+            elif self.campaign.phase == "warehouse":
+                self.household.moneyOnHand = int(self.campaign.dayStartMoney)
+            else:
+                self.household.moneyOnHand = int(self.campaign.dayStartMoney + campaign.getTakeHomePay(self.campaign))
+
+    def syncGameMoneyFromHousehold(self):
+        if self.household:
+            self.money = int(self.household.moneyOnHand)
+
+    def autosaveStory(self):
+        if self.mode != "story" or not self.campaign or not self.household:
+            return
+
+        if self.campaign.phase not in VALID_STORY_SAVE_PHASES:
+            return
+
+        self.syncHouseholdMoneyFromGame()
+        saveData.saveGame(self)
+        self.refreshContinueOption()
 
     def resetRuntimeState(self):
         self.workers = 1
@@ -119,7 +230,7 @@ class GameEngine(object):
         self.currentEmergencyOutcome = None
         self.daySummaryData = None
         self.dialogueData = None
-        self.dialogueAction = None
+        self.dialogueAction = ""
 
         self.player.position = vec(500, 600)
         self.player.velocity = vec(0, 0)
@@ -129,12 +240,310 @@ class GameEngine(object):
         self.clampCamera()
 
     def startPracticeShift(self):
-        self.resetRuntimeState()
         self.mode = "practice"
+        self.resetRuntimeState()
         self.campaign = None
         self.household = None
         self.mainMenuIndex = 0
         self.state = "warehouse"
+
+    def startStoryCampaign(self):
+        self.mode = "story"
+        self.resetRuntimeState()
+        self.campaign = campaign.createCampaignState()
+        self.household = campaign.createHouseholdState(self.money)
+        self.mainMenuIndex = 0
+        self.applyStoryDaySetup()
+        self.autosaveStory()
+        self.showBeatDialogue()
+
+    def continueStoryCampaign(self, savePayload=None):
+        if savePayload is None:
+            savePayload = saveData.loadGame()
+        if not self.isValidStorySaveData(savePayload):
+            self.refreshContinueOption()
+            return
+
+        self.continueOptions = []
+        self.continueMenuIndex = 0
+        self.mode = "story"
+        self.resetRuntimeState()
+
+        self.money = float(savePayload.get("money", 0))
+        self.packagesShipped = float(savePayload.get("packagesShipped", 0))
+        self.workers = int(savePayload.get("workers", self.workers))
+        self.vans = int(savePayload.get("vans", self.vans))
+        self.vanCapacity = int(savePayload.get("vanCapacity", self.vanCapacity))
+        self.contractMultiplier = float(savePayload.get("contractMultiplier", self.contractMultiplier))
+        self.stockValue = float(savePayload.get("stockValue", self.stockValue))
+        self.stockHistory = list(savePayload.get("stockHistory", [self.stockValue])) or [self.stockValue]
+        self.highScores = dict(savePayload.get("highScores", self.highScores))
+
+        self.campaign = campaign.campaignFromDict(savePayload["campaign"])
+        self.household = campaign.householdFromDict(savePayload["household"])
+        self.syncHouseholdMoneyFromGame()
+
+        phase = self.campaign.phase
+        self.applyStoryDaySetup()
+
+        if phase == "warehouse":
+            self.state = "warehouse"
+        elif phase == "daySummary":
+            self.daySummaryData = dict(self.campaign.currentSummary)
+            if not self.daySummaryData:
+                beat = storyContent.get_day_beat(self.campaign.dayNumber)
+                self.daySummaryData = campaign.buildDaySummary(self.campaign, beat)
+            self.currentEmergencyOutcome = self.daySummaryData.get("emergencyOutcome")
+            self.state = "daySummary"
+        elif phase == "home":
+            self.state = "home"
+            self.homeMenuIndex = 0
+        else:
+            self.campaign.phase = "briefing"
+            self.state = "briefing"
+
+        self.autosaveStory()
+
+    def addStoryPressureBoost(self, beat):
+        boost = float(beat.get("pressureBoost", 0.0))
+        if boost <= 0:
+            return
+
+        self.stockValue += boost
+        self.stockHistory.append(self.stockValue)
+        if len(self.stockHistory) > 200:
+            self.stockHistory.pop(0)
+
+    def applyStoryDaySetup(self):
+        beat = campaign.syncDailyQuotaToBeat(self.campaign)
+        self.contractMultiplier = float(beat.get("contractMultiplier", self.contractMultiplier))
+        self.trafficWaveVehicleCount = int(beat.get("trafficCount", self.trafficWaveVehicleCount))
+
+        self.currentMinigame = None
+        self.currentMinigameType = None
+        self.resultsData = None
+        self.currentEmergencyDef = None
+        self.currentEmergencyOutcome = None
+        self.daySummaryData = dict(self.campaign.currentSummary)
+        self.dialogueData = None
+        self.dialogueAction = ""
+
+        self.player.position = vec(500, 600)
+        self.player.velocity = vec(0, 0)
+        self.player.updateRect()
+        self.buildWorldProps()
+        self.centerCameraOnPlayer()
+        self.clampCamera()
+
+        return beat
+
+    def showBeatDialogue(self):
+        beat = storyContent.get_day_beat(self.campaign.dayNumber)
+        self.campaign.phase = "briefing"
+        self.queueDialogue(
+            title="DAY {0}: {1}".format(self.campaign.dayNumber, beat["title"]),
+            speaker=beat["speaker"],
+            summary=beat["summary"],
+            lines=beat["dialogue"],
+            prompt="Press Enter for briefing",
+            action="briefing",
+        )
+
+    def queueDialogue(self, title, speaker, summary, lines, prompt, action):
+        self.dialogueData = {
+            "title": title,
+            "speaker": speaker,
+            "summary": summary,
+            "lines": list(lines),
+            "prompt": prompt,
+        }
+        self.dialogueAction = action
+        self.state = "dialogue"
+
+    def resolveDialogue(self):
+        action = self.dialogueAction
+        self.dialogueData = None
+        self.dialogueAction = ""
+
+        if action == "briefing":
+            self.enterBriefing()
+        elif action == "mainMenu":
+            self.finishStoryEnding()
+
+    def enterBriefing(self):
+        self.campaign.phase = "briefing"
+        self.state = "briefing"
+        self.autosaveStory()
+
+    def beginShift(self):
+        self.syncGameMoneyFromHousehold()
+        self.campaign.phase = "warehouse"
+        self.campaign.dayStartMoney = int(self.money)
+        self.daySummaryData = None
+        self.currentEmergencyDef = None
+        self.currentEmergencyOutcome = None
+        self.state = "warehouse"
+        self.autosaveStory()
+
+    def enterEmergency(self):
+        if not self.campaign.pendingEmergencyId:
+            self.openDaySummary()
+            return
+
+        emergencyDef = storyContent.get_emergency_def(self.campaign.pendingEmergencyId)
+        if not emergencyDef:
+            self.openDaySummary()
+            return
+
+        self.currentEmergencyDef = emergencyDef
+        self.campaign.phase = "emergency"
+        self.state = "emergency"
+
+    def launchEmergencyMinigame(self):
+        if not self.currentEmergencyDef:
+            return
+
+        activityId = self.currentEmergencyDef.get("activityId")
+        activityConfig = self.getStoryActivityConfig(activityId)
+        self.startActivity(activityId, activityConfig)
+
+    def openDaySummary(self):
+        beat = storyContent.get_day_beat(self.campaign.dayNumber)
+        self.currentEmergencyDef = None
+        self.campaign.payToday = max(0, int(self.money) - int(self.campaign.dayStartMoney))
+        self.daySummaryData = campaign.buildDaySummary(
+            self.campaign,
+            beat,
+            emergencyOutcome=self.currentEmergencyOutcome,
+        )
+        self.campaign.phase = "daySummary"
+        self.state = "daySummary"
+        self.autosaveStory()
+
+    def openStockScreen(self):
+        self.state = "stock"
+
+    def openHomeScreen(self):
+        self.syncHouseholdMoneyFromGame()
+        campaign.applyBillsForDay(self.household, self.campaign.dayNumber)
+        self.homeMenuIndex = 0
+        self.campaign.phase = "home"
+        self.state = "home"
+        self.autosaveStory()
+
+    def finishHomePhase(self):
+        campaign.finalizeHomePhase(self.household)
+        self.syncGameMoneyFromHousehold()
+
+        if self.campaign.dayNumber >= storyContent.CAMPAIGN_LENGTH:
+            endingId = campaign.resolveEnding(self.campaign, self.household)
+            endingDef = storyContent.ENDING_DEFS[endingId]
+            self.campaign.currentEndingId = endingId
+            saveData.deleteSave()
+            self.refreshContinueOption()
+            self.queueDialogue(
+                title=endingDef["title"],
+                speaker="Shift Record",
+                summary=endingDef["summary"],
+                lines=endingDef["lines"],
+                prompt="Press Enter for main menu",
+                action="mainMenu",
+            )
+            return
+
+        nextDay = self.campaign.dayNumber + 1
+        nextBeat = campaign.prepareDay(self.campaign, nextDay)
+        self.addStoryPressureBoost(nextBeat)
+        self.applyStoryDaySetup()
+        self.autosaveStory()
+        self.showBeatDialogue()
+
+    def finishStoryEnding(self):
+        self.returnToMenu()
+
+    def finishShift(self):
+        if self.campaign.pendingEmergencyId and not self.campaign.emergencyResolved:
+            self.enterEmergency()
+        else:
+            self.openDaySummary()
+
+    def resolveEmergencyOutcome(self, resultData):
+        emergencyDef = self.currentEmergencyDef or storyContent.get_emergency_def(self.campaign.pendingEmergencyId)
+        if not emergencyDef:
+            self.openDaySummary()
+            return
+
+        if resultData.get("success"):
+            self.money += int(emergencyDef.get("moneyBonus", 0))
+            self.campaign.safetyReputation += int(emergencyDef.get("safetyDeltaOnSuccess", 0))
+            self.currentEmergencyOutcome = emergencyDef.get("successText", "The emergency was handled.")
+        else:
+            self.household.stress += int(emergencyDef.get("stressDeltaOnFail", 0))
+            campaign.recalculateHousehold(self.household)
+            self.campaign.safetyReputation += int(emergencyDef.get("safetyDeltaOnFail", 0))
+            self.currentEmergencyOutcome = emergencyDef.get("failureText", "The emergency slipped into tomorrow.")
+
+        self.openDaySummary()
+
+    def getStoryActivityConfig(self, activityId):
+        config = {
+            "recordHighScore": False,
+        }
+
+        if activityId == "sorting":
+            config.update({
+                "title": "SORT THE FLOOR FREIGHT",
+                "resultLabel": "SHIFT TASK COMPLETE",
+            })
+        elif activityId == "semiUnloading":
+            config.update({
+                "title": "CLEAR THE DOCK TRAILER",
+                "resultLabel": "DOCK TASK COMPLETE",
+            })
+        elif activityId == "conveyorRouting":
+            config.update({
+                "resultLabel": "ROUTING TASK COMPLETE",
+            })
+
+        if not self.currentEmergencyDef:
+            return config
+
+        emergencySummary = self.currentEmergencyDef.get("summary", "")
+        config.update({
+            "isEmergency": True,
+            "quotaKey": "emergencies",
+            "recordHighScore": False,
+            "title": self.currentEmergencyDef.get("title", "").upper(),
+            "instructions": emergencySummary,
+            "resultLabel": "EMERGENCY RESPONSE COMPLETE",
+        })
+
+        if activityId == "urgentUnload":
+            config.update({
+                "roundTime": 38.0,
+                "manifestCount": 5,
+                "moneyPerDelivered": 10,
+            })
+        elif activityId == "manifestMismatch":
+            config.update({
+                "timer": 18,
+                "successThreshold": 4,
+                "scoreMoneyFactor": 4,
+            })
+        elif activityId == "conveyorOverflow":
+            config.update({
+                "roundTime": 26.0,
+                "successTarget": 7,
+                "maxBacklog": 5,
+            })
+        elif activityId == "spillCleanup":
+            config.update({
+                "roundTime": 16.0,
+                "spillCount": 10,
+                "moneyReward": 10,
+            })
+
+        return config
 
     def returnToMenu(self):
         self.mode = None
@@ -144,16 +553,25 @@ class GameEngine(object):
         self.currentEmergencyOutcome = None
         self.daySummaryData = None
         self.dialogueData = None
-        self.dialogueAction = None
+        self.dialogueAction = ""
         self.currentMinigame = None
         self.currentMinigameType = None
         self.resultsData = None
         self.mainMenuIndex = 0
+        self.continueMenuIndex = 0
+        self.continueOptions = []
         self.state = "mainMenu"
+        self.refreshContinueOption()
 
     def draw(self, surface):
         if self.state == "mainMenu":
             mainMenu.drawMainMenu(self, surface)
+        elif self.state == "continueMenu":
+            mainMenu.drawContinueMenu(self, surface)
+        elif self.state == "briefing":
+            briefingScreen.drawBriefingScreen(self, surface)
+        elif self.state == "dialogue":
+            dialogueScreen.drawDialogueScreen(self, surface)
         elif self.state == "warehouse":
             warehouse.drawWarehouse(self, surface)
         elif self.state == "minigame":
@@ -166,6 +584,12 @@ class GameEngine(object):
             infoScreen.drawInfoScreen(self, surface)
         elif self.state == "stock":
             stockScreen.drawStockGraph(self, surface)
+        elif self.state == "emergency":
+            emergencyScreen.drawEmergencyScreen(self, surface)
+        elif self.state == "daySummary":
+            daySummaryScreen.drawDaySummary(self, surface)
+        elif self.state == "home":
+            homeScreen.drawHomeScreen(self, surface)
 
         pygame.transform.scale(surface, self.UPSCALED, self.screen)
         pygame.display.flip()
@@ -191,6 +615,11 @@ class GameEngine(object):
         self.centerCameraOnPlayer()
         self.clampCamera()
 
+        if self.mode == "story" and self.campaign:
+            campaign.recordAmbientTime(self.campaign, seconds)
+            if campaign.isShiftComplete(self.campaign):
+                self.finishShift()
+
     def update(self, seconds):
         if self.state == "warehouse":
             self.updateWarehouse(seconds)
@@ -198,10 +627,30 @@ class GameEngine(object):
             self.currentMinigame.update(seconds)
 
     def applyResultsAndContinue(self):
+        resultData = self.resultsData or {}
         self.currentMinigame = None
         self.currentMinigameType = None
         self.resultsData = None
-        self.state = "warehouse"
+
+        if self.mode != "story" or not self.campaign:
+            self.state = "warehouse"
+            return
+
+        campaign.registerActivityResult(self.campaign, resultData)
+        campaign.advanceDayProgress(self.campaign, float(resultData.get("dayProgressDelta", 0.0)))
+
+        if not resultData.get("isEmergency"):
+            self.campaign.safetyReputation += int(resultData.get("safetyDelta", 0))
+
+        if resultData.get("isEmergency"):
+            self.resolveEmergencyOutcome(resultData)
+            return
+
+        if campaign.isShiftComplete(self.campaign):
+            self.finishShift()
+        else:
+            self.campaign.phase = "warehouse"
+            self.state = "warehouse"
 
     def clampCamera(self):
         maxX = self.WORLD_SIZE[0] - self.RESOLUTION[0]
@@ -210,16 +659,62 @@ class GameEngine(object):
         Drawable.CAMERA_OFFSET[1] = max(0, min(Drawable.CAMERA_OFFSET[1], maxY))
 
     def handleMainMenuEvent(self, event):
-        options = 2
+        options = self.getMainMenuOptions()
         if event.key == pygame.K_UP:
-            self.mainMenuIndex = (self.mainMenuIndex - 1) % options
+            self.mainMenuIndex = (self.mainMenuIndex - 1) % len(options)
         elif event.key == pygame.K_DOWN:
-            self.mainMenuIndex = (self.mainMenuIndex + 1) % options
+            self.mainMenuIndex = (self.mainMenuIndex + 1) % len(options)
         elif event.key == pygame.K_RETURN:
-            if self.mainMenuIndex == 0:
+            action = options[self.mainMenuIndex][1]
+            if action == "story":
+                self.startStoryCampaign()
+            elif action == "practice":
                 self.startPracticeShift()
+            elif action == "continue":
+                self.openContinueMenu()
             else:
                 pygame.event.post(pygame.event.Event(pygame.QUIT))
+
+    def handleContinueMenuEvent(self, event):
+        if not self.continueOptions:
+            self.returnToMenu()
+            return
+
+        if event.key == pygame.K_UP:
+            self.continueMenuIndex = (self.continueMenuIndex - 1) % len(self.continueOptions)
+        elif event.key == pygame.K_DOWN:
+            self.continueMenuIndex = (self.continueMenuIndex + 1) % len(self.continueOptions)
+        elif event.key == pygame.K_BACKSPACE:
+            self.state = "mainMenu"
+        elif event.key == pygame.K_RETURN:
+            selected = self.continueOptions[self.continueMenuIndex]
+            self.continueStoryCampaign(selected["payload"])
+
+    def handleHomeEvent(self, event):
+        homeItems = homeScreen.HOME_ITEMS
+        if event.key == pygame.K_UP:
+            self.homeMenuIndex = (self.homeMenuIndex - 1) % len(homeItems)
+            return True
+        if event.key == pygame.K_DOWN:
+            self.homeMenuIndex = (self.homeMenuIndex + 1) % len(homeItems)
+            return True
+
+        selectedKey, selectedLabel = homeItems[self.homeMenuIndex]
+
+        if event.key in (pygame.K_LEFT, pygame.K_RIGHT) and selectedKey != "sleep":
+            paid = campaign.payBill(self.household, selectedKey, self.homePaymentStep)
+            if paid > 0:
+                self.syncGameMoneyFromHousehold()
+                self.household.lastMessage = "Paid ${0} toward {1}".format(paid, selectedLabel)
+            else:
+                self.household.lastMessage = "Not enough cash for {0}".format(selectedLabel.lower())
+            return True
+
+        if event.key == pygame.K_RETURN and selectedKey == "sleep":
+            self.finishHomePhase()
+            return True
+
+        return False
 
     def handleWarehouseHotkeys(self, event):
         if event.key == pygame.K_i:
@@ -228,6 +723,13 @@ class GameEngine(object):
         if event.key == pygame.K_s:
             self.state = "stock" if self.state == "warehouse" else "warehouse"
             return True
+        if self.mode == "story" and event.key == pygame.K_b:
+            if self.state == "warehouse":
+                self.state = "briefing"
+                return True
+            if self.state == "briefing":
+                self.state = "warehouse"
+                return True
         return False
 
     def handleEvent(self, event):
@@ -238,6 +740,41 @@ class GameEngine(object):
         if event.type == pygame.KEYDOWN:
             if self.state == "mainMenu":
                 self.handleMainMenuEvent(event)
+                return
+
+            if self.state == "continueMenu":
+                self.handleContinueMenuEvent(event)
+                return
+
+            if self.state == "dialogue" and event.key == pygame.K_RETURN:
+                self.resolveDialogue()
+                return
+
+            if self.state == "briefing":
+                if event.key == pygame.K_RETURN:
+                    self.beginShift()
+                    return
+                if event.key == pygame.K_b:
+                    self.state = "warehouse"
+                    return
+                if event.key == pygame.K_s:
+                    self.state = "stock"
+                    return
+
+            if self.state == "emergency" and event.key == pygame.K_RETURN:
+                self.launchEmergencyMinigame()
+                return
+
+            if self.state == "daySummary" and event.key == pygame.K_RETURN:
+                self.openStockScreen()
+                return
+
+            if self.state == "stock" and self.mode == "story" and self.campaign and self.campaign.phase == "daySummary":
+                if event.key in (pygame.K_RETURN, pygame.K_s):
+                    self.openHomeScreen()
+                return
+
+            if self.state == "home" and self.handleHomeEvent(event):
                 return
 
             if self.state == "results" and event.key in (pygame.K_SPACE, pygame.K_RETURN):
@@ -260,12 +797,15 @@ class GameEngine(object):
 
             if self.state == "warehouse" and event.key == pygame.K_e and self.currentInteraction:
                 if self.currentInteraction == "sorting":
-                    self.startActivity("sorting")
+                    storyConfig = self.getStoryActivityConfig("sorting") if self.mode == "story" else None
+                    self.startActivity("sorting", storyConfig)
                 elif self.currentInteraction == "semiUnloading":
-                    self.startActivity("semiUnloading")
+                    storyConfig = self.getStoryActivityConfig("semiUnloading") if self.mode == "story" else None
+                    self.startActivity("semiUnloading", storyConfig)
                 elif self.currentInteraction == "conveyorRouting":
-                    self.startActivity("conveyorRouting")
-                elif self.currentInteraction == "spillCleanup":
+                    storyConfig = self.getStoryActivityConfig("conveyorRouting") if self.mode == "story" else None
+                    self.startActivity("conveyorRouting", storyConfig)
+                elif self.currentInteraction == "spillCleanup" and self.mode != "story":
                     self.startActivity("spillCleanup")
                 elif self.currentInteraction == "upgrade":
                     self.state = "upgrade"
@@ -280,24 +820,12 @@ class GameEngine(object):
             self.player.velocity[0] = 0
             self.player.velocity[1] = 0
 
-    def buildActivity(self, activityId):
-        factory = ACTIVITY_FACTORIES.get(activityId)
-        if not factory:
-            raise ValueError("Unknown activity id: {0}".format(activityId))
+    def buildActivity(self, activityId, overrides=None):
+        return activityRegistry.buildActivity(self, activityId, overrides)
 
-        settings = {}
-        if activityId == "spillCleanup":
-            settings = {
-                "quotaKey": "spillCleanup",
-                "isEmergency": False,
-                "recordHighScore": True,
-            }
-
-        return factory(self, settings=settings)
-
-    def startActivity(self, activityId):
+    def startActivity(self, activityId, overrides=None):
         self.currentMinigameType = activityId
-        self.currentMinigame = self.buildActivity(activityId)
+        self.currentMinigame = self.buildActivity(activityId, overrides)
         self.state = "minigame"
 
     def centerCameraOnPlayer(self):
@@ -416,12 +944,13 @@ class GameEngine(object):
                     self.currentInteraction = "semiUnloading"
                     return
 
-        for control in self.spillCleanupControls:
-            targetRect = getattr(control, "interactionRect", control.rect)
-            if targetRect and interactionRect.colliderect(targetRect):
-                self.showInteractPrompt = True
-                self.currentInteraction = "spillCleanup"
-                return
+        if self.mode != "story":
+            for control in self.spillCleanupControls:
+                targetRect = getattr(control, "interactionRect", control.rect)
+                if targetRect and interactionRect.colliderect(targetRect):
+                    self.showInteractPrompt = True
+                    self.currentInteraction = "spillCleanup"
+                    return
 
         sortingZone = self.getZone("Sorting Area")
         if sortingZone.rect.colliderect(interactionRect):

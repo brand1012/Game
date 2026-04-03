@@ -1,0 +1,257 @@
+{
+  "mode": "story",
+  "money": 193,
+  "packagesShipped": 60.779199999999506,
+  "workers": 1,
+  "vans": 1,
+  "vanCapacity": 1,
+  "contractMultiplier": 1.1,
+  "stockValue": 101.69249999999998,
+  "stockHistory": [
+    100,
+    100.01,
+    100.02000000000001,
+    100.03000000000002,
+    100.04000000000002,
+    100.64000000000001,
+    100.65050000000001,
+    100.661,
+    100.6715,
+    100.68199999999999,
+    100.69249999999998,
+    101.69249999999998
+  ],
+  "highScores": {
+    "sorting": 12,
+    "semiUnloading": 658,
+    "conveyorRouting": 1580,
+    "spillCleanup": 784
+  },
+  "campaign": {
+    "dayNumber": 3,
+    "phase": "briefing",
+    "dayProgress": 0.0,
+    "dailyQuota": {
+      "sorting": 2,
+      "semiUnloading": 1,
+      "packageTarget": 16
+    },
+    "completedJobs": {
+      "sorting": 0,
+      "semiUnloading": 0,
+      "emergencies": 0
+    },
+    "storyBeatId": "first_missed_refill",
+    "pendingEmergencyId": "urgent_dock_rush",
+    "safetyReputation": 0,
+    "totalPerformance": 1295,
+    "storyFlags": [],
+    "payToday": 0,
+    "dayStartMoney": 123,
+    "currentEndingId": null,
+    "currentSummary": {},
+    "emergencyResolved": false
+  },
+  "household": {
+    "moneyOnHand": 193,
+    "rentDue": 0,
+    "groceriesNeed": 0,
+    "medicineNeed": 0,
+    "schoolDue": 0,
+    "savings": 0,
+    "stress": 0,
+    "householdStability": 82,
+    "lateBills": [],
+    "billsAppliedThroughDay": 2,
+    "lastMessage": "Home is still tight, but tonight it can breathe."
+  },
+  "daySnapshots": [
+    {
+      "mode": "story",
+      "money": 0,
+      "packagesShipped": 0,
+      "workers": 1,
+      "vans": 1,
+      "vanCapacity": 1,
+      "contractMultiplier": 1.0,
+      "stockValue": 100,
+      "stockHistory": [
+        100
+      ],
+      "highScores": {
+        "sorting": 12,
+        "semiUnloading": 658,
+        "conveyorRouting": 1580,
+        "spillCleanup": 784
+      },
+      "campaign": {
+        "dayNumber": 1,
+        "phase": "briefing",
+        "dayProgress": 0.0,
+        "dailyQuota": {
+          "sorting": 1,
+          "semiUnloading": 1,
+          "packageTarget": 10
+        },
+        "completedJobs": {
+          "sorting": 0,
+          "semiUnloading": 0,
+          "emergencies": 0
+        },
+        "storyBeatId": "first_clock_in",
+        "pendingEmergencyId": null,
+        "safetyReputation": 0,
+        "totalPerformance": 0,
+        "storyFlags": [],
+        "payToday": 0,
+        "dayStartMoney": 0,
+        "currentEndingId": null,
+        "currentSummary": {},
+        "emergencyResolved": false
+      },
+      "household": {
+        "moneyOnHand": 0,
+        "rentDue": 0,
+        "groceriesNeed": 0,
+        "medicineNeed": 0,
+        "schoolDue": 0,
+        "savings": 0,
+        "stress": 8,
+        "householdStability": 74,
+        "lateBills": [],
+        "billsAppliedThroughDay": 0,
+        "lastMessage": "Your phone is full of reminders you can not ignore forever."
+      }
+    },
+    {
+      "mode": "story",
+      "money": 123,
+      "packagesShipped": 33.54399999999994,
+      "workers": 1,
+      "vans": 1,
+      "vanCapacity": 1,
+      "contractMultiplier": 1.05,
+      "stockValue": 100.64000000000001,
+      "stockHistory": [
+        100,
+        100.01,
+        100.02000000000001,
+        100.03000000000002,
+        100.04000000000002,
+        100.64000000000001
+      ],
+      "highScores": {
+        "sorting": 12,
+        "semiUnloading": 658,
+        "conveyorRouting": 1580,
+        "spillCleanup": 784
+      },
+      "campaign": {
+        "dayNumber": 2,
+        "phase": "briefing",
+        "dayProgress": 0.0,
+        "dailyQuota": {
+          "sorting": 2,
+          "semiUnloading": 1,
+          "packageTarget": 14
+        },
+        "completedJobs": {
+          "sorting": 0,
+          "semiUnloading": 0,
+          "emergencies": 0
+        },
+        "storyBeatId": "tight_margin",
+        "pendingEmergencyId": null,
+        "safetyReputation": 0,
+        "totalPerformance": 655,
+        "storyFlags": [],
+        "payToday": 0,
+        "dayStartMoney": 0,
+        "currentEndingId": null,
+        "currentSummary": {},
+        "emergencyResolved": false
+      },
+      "household": {
+        "moneyOnHand": 123,
+        "rentDue": 0,
+        "groceriesNeed": 0,
+        "medicineNeed": 0,
+        "schoolDue": 0,
+        "savings": 0,
+        "stress": 4,
+        "householdStability": 78,
+        "lateBills": [],
+        "billsAppliedThroughDay": 1,
+        "lastMessage": "Home is still tight, but tonight it can breathe."
+      }
+    },
+    {
+      "mode": "story",
+      "money": 193,
+      "packagesShipped": 60.779199999999506,
+      "workers": 1,
+      "vans": 1,
+      "vanCapacity": 1,
+      "contractMultiplier": 1.1,
+      "stockValue": 101.69249999999998,
+      "stockHistory": [
+        100,
+        100.01,
+        100.02000000000001,
+        100.03000000000002,
+        100.04000000000002,
+        100.64000000000001,
+        100.65050000000001,
+        100.661,
+        100.6715,
+        100.68199999999999,
+        100.69249999999998,
+        101.69249999999998
+      ],
+      "highScores": {
+        "sorting": 12,
+        "semiUnloading": 658,
+        "conveyorRouting": 1580,
+        "spillCleanup": 784
+      },
+      "campaign": {
+        "dayNumber": 3,
+        "phase": "briefing",
+        "dayProgress": 0.0,
+        "dailyQuota": {
+          "sorting": 2,
+          "semiUnloading": 1,
+          "packageTarget": 16
+        },
+        "completedJobs": {
+          "sorting": 0,
+          "semiUnloading": 0,
+          "emergencies": 0
+        },
+        "storyBeatId": "first_missed_refill",
+        "pendingEmergencyId": "urgent_dock_rush",
+        "safetyReputation": 0,
+        "totalPerformance": 1295,
+        "storyFlags": [],
+        "payToday": 0,
+        "dayStartMoney": 123,
+        "currentEndingId": null,
+        "currentSummary": {},
+        "emergencyResolved": false
+      },
+      "household": {
+        "moneyOnHand": 193,
+        "rentDue": 0,
+        "groceriesNeed": 0,
+        "medicineNeed": 0,
+        "schoolDue": 0,
+        "savings": 0,
+        "stress": 0,
+        "householdStability": 82,
+        "lateBills": [],
+        "billsAppliedThroughDay": 2,
+        "lastMessage": "Home is still tight, but tonight it can breathe."
+      }
+    }
+  ]
+}
