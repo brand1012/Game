@@ -1,3 +1,5 @@
+import os
+
 import pygame
 
 import assets.spriteManager as spriteManager
@@ -39,14 +41,15 @@ VALID_STORY_SAVE_PHASES = {"briefing", "warehouse", "daySummary", "home"}
 
 class GameEngine(object):
     def __init__(self):
+        os.environ["SDL_VIDEO_WINDOW_POS"] = "0,0"
         pygame.init()
 
         self.RESOLUTION = (400, 200)
         self.WORLD_SIZE = (1000, 700)
-        self.SCALE = 3
-        self.UPSCALED = [int(x * self.SCALE) for x in self.RESOLUTION]
 
-        self.screen = pygame.display.set_mode(list(self.UPSCALED))
+        monitorResolution = self.getMonitorResolution()
+        self.screen = pygame.display.set_mode(list(monitorResolution), pygame.NOFRAME)
+        self.UPSCALED = list(self.screen.get_size())
         self.drawSurface = pygame.Surface(list(self.RESOLUTION))
 
         self.myFont = pygame.font.SysFont("Arial", 16)
@@ -100,6 +103,26 @@ class GameEngine(object):
 
         self.resetRuntimeState()
         self.refreshContinueOption()
+
+    def getMonitorResolution(self):
+        desktopSizes = pygame.display.get_desktop_sizes()
+        if desktopSizes:
+            monitorWidth, monitorHeight = desktopSizes[0]
+            return [int(monitorWidth), int(monitorHeight)]
+
+        displayInfo = pygame.display.Info()
+        monitorWidth = int(displayInfo.current_w)
+        monitorHeight = int(displayInfo.current_h)
+
+        if monitorWidth <= 0 or monitorHeight <= 0:
+            return [self.RESOLUTION[0] * 3, self.RESOLUTION[1] * 3]
+
+        return [monitorWidth, monitorHeight]
+
+    def getRenderPosition(self, position):
+        scaleX = self.UPSCALED[0] / self.RESOLUTION[0]
+        scaleY = self.UPSCALED[1] / self.RESOLUTION[1]
+        return (int(position[0] / scaleX), int(position[1] / scaleY))
 
     def refreshContinueOption(self):
         savePayload = saveData.loadGame()

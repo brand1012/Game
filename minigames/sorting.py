@@ -56,7 +56,7 @@ class SortingMinigame:
         self.spawnNewPallet()
 
     def getScaledMousePos(self, pos):
-        return (int(pos[0] / self.game.SCALE), int(pos[1] / self.game.SCALE))
+        return self.game.getRenderPosition(pos)
 
     def spawnNewPallet(self):
         fileName = random.choice(list(self.spriteToCategory.keys()))
