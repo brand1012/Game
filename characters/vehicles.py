@@ -8,6 +8,33 @@ from characters.props import Prop
 from utils.vector import magnitude, normalize, pyVec, vec
 
 
+def projectedHalfExtent(rect, axis):
+    return ((abs(axis[0]) * rect.width) + (abs(axis[1]) * rect.height)) / 2.0
+
+
+def isForwardImpact(targetRect, hazardRect, direction, crossRatio=0.35, forwardPadding=4.0):
+    if targetRect is None or hazardRect is None or magnitude(direction) == 0:
+        return False
+
+    forward = normalize(direction)
+    right = vec(-forward[1], forward[0])
+    targetCenter = vec(*targetRect.center)
+    hazardCenter = vec(*hazardRect.center)
+    relative = targetCenter - hazardCenter
+
+    forwardDistance = (relative[0] * forward[0]) + (relative[1] * forward[1])
+    lateralDistance = abs((relative[0] * right[0]) + (relative[1] * right[1]))
+    forwardReach = projectedHalfExtent(hazardRect, forward) + projectedHalfExtent(targetRect, forward)
+    crossReach = (projectedHalfExtent(hazardRect, right) * crossRatio) + projectedHalfExtent(targetRect, right)
+    gapToFront = forwardDistance - forwardReach
+
+    return (
+        forwardDistance > 0
+        and gapToFront <= forwardPadding
+        and lateralDistance <= max(8, crossReach)
+    )
+
+
 class LaneVehicle(Prop):
     def __init__(
         self,
@@ -55,6 +82,17 @@ class LaneVehicle(Prop):
         self.active = False
         self.hasExitedScreen = True
         self.velocity = vec(0, 0)
+
+    def isMoving(self):
+        return (
+            self.active
+            and self.startDelay <= 0
+            and self.pauseTimer <= 0
+            and magnitude(self.velocity) > 0
+        )
+
+    def isForwardImpact(self, targetRect):
+        return isForwardImpact(targetRect, self.rect, self.velocity)
 
     def update(self, seconds):
         if not self.active:
@@ -127,6 +165,8 @@ class SemiTruckRig(object):
             max(1, int(trailerWidth - insetX * 2)),
             max(1, int(trailerLength - insetY * 2)),
         )
+        self.cabRect = pygame.Rect(0, 0, *self.cabSize)
+        self.trailerRect = pygame.Rect(0, 0, *self.trailerSize)
         self.rect = pygame.Rect(0, 0, *self.collisionSize)
         self.restart()
 
@@ -188,12 +228,25 @@ class SemiTruckRig(object):
         cabRect = cabImage.get_rect(center=pyVec(self.currentCabCenter))
         trailerCenter = self.trailerFrontPoint - self.trailerDirection * (self.trailerSize[1] / 2)
         trailerRect = trailerImage.get_rect(center=pyVec(trailerCenter))
+        self.cabRect = cabRect
+        self.trailerRect = trailerRect
         self.rect = cabRect.union(trailerRect)
 
     def finishRoute(self):
         self.finished = True
         self.active = False
         self.updateCollisionRect()
+
+    def isMoving(self):
+        return (
+            self.active
+            and not self.finished
+            and self.startDelay <= 0
+            and self.pauseTimer <= 0
+        )
+
+    def isForwardImpact(self, targetRect):
+        return isForwardImpact(targetRect, self.cabRect, self.cabDirection)
 
     def update(self, seconds):
         if not self.active:

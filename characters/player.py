@@ -6,6 +6,8 @@ from utils.vector import pyVec, vec
 
 
 class Player(Drawable):
+    MELT_DURATION = 0.7
+
     def __init__(self, position, spriteManager, bounds):
         self.frameWidth = 32
         self.frameHeight = 32
@@ -39,6 +41,8 @@ class Player(Drawable):
         self.timer = 0
         self.framesPerSecond = 10
         self.facing = "down"
+        self.meltTimer = 0.0
+        self.respawnPosition = position.copy()
 
         self.image = self.animations["idle"][self.facing][0]
         super().__init__(position, self.image)
@@ -57,6 +61,32 @@ class Player(Drawable):
 
         self.state = IdleState()
         self.state.enter(self)
+
+    def setRespawnPosition(self, position):
+        self.respawnPosition = vec(*position)
+
+    def placeAt(self, position, facing="down"):
+        self.position = vec(*position)
+        self.velocity = vec(0, 0)
+        self.facing = facing
+        self.changeState(IdleState())
+        self.updateRect()
+
+    def startTrafficMeltdown(self, respawnPosition):
+        if self.meltTimer > 0:
+            return False
+
+        self.setRespawnPosition(respawnPosition)
+        self.meltTimer = self.MELT_DURATION
+        self.velocity = vec(0, 0)
+        self.changeState(IdleState())
+        return True
+
+    def canBeHitByTraffic(self):
+        return self.meltTimer <= 0
+
+    def isMelting(self):
+        return self.meltTimer > 0
 
     def setAnimation(self, name):
         if self.stateName != name:
@@ -140,6 +170,12 @@ class Player(Drawable):
         self.image = frames[self.frame]
 
     def update(self, dt, walls=None):
+        if self.meltTimer > 0:
+            self.meltTimer = max(0, self.meltTimer - dt)
+            if self.meltTimer == 0:
+                self.placeAt(self.respawnPosition)
+            return
+
         self.state.update(self, dt)
 
         if walls:
@@ -168,7 +204,35 @@ class Player(Drawable):
         self.updateRect()
         self.updateAnimation(dt)
 
+    def drawMelting(self, surface):
+        progress = 1 - (self.meltTimer / self.MELT_DURATION)
+        screenPos = self.position - Drawable.CAMERA_OFFSET
+        spriteWidth, spriteHeight = self.image.get_size()
+        shadowWidth, shadowHeight = self.shadow.get_size()
+
+        squashWidth = max(1, int(spriteWidth * (1 + 0.45 * progress)))
+        squashHeight = max(4, int(spriteHeight * (1 - 0.82 * progress)))
+        meltedSprite = pygame.transform.smoothscale(self.image, (squashWidth, squashHeight))
+        meltedSprite.set_alpha(max(24, int(255 * (1 - 0.8 * progress))))
+
+        meltShadowWidth = max(1, int(shadowWidth * (1 + 0.55 * progress)))
+        meltShadowHeight = max(1, int(shadowHeight * (1 - 0.3 * progress)))
+        meltedShadow = pygame.transform.smoothscale(self.shadow, (meltShadowWidth, meltShadowHeight))
+        meltedShadow.set_alpha(max(50, int(160 * (1 - 0.35 * progress))))
+
+        spriteX = int(screenPos[0] + (spriteWidth - squashWidth) / 2)
+        spriteY = int(screenPos[1] + spriteHeight - squashHeight + (progress * 3))
+        shadowX = int(screenPos[0] + (shadowWidth - meltShadowWidth) / 2)
+        shadowY = int(screenPos[1] + shadowHeight - meltShadowHeight)
+
+        surface.blit(meltedShadow, (shadowX, shadowY))
+        surface.blit(meltedSprite, (spriteX, spriteY))
+
     def draw(self, surface):
         screenPos = self.position - Drawable.CAMERA_OFFSET
+        if self.meltTimer > 0:
+            self.drawMelting(surface)
+            return
+
         surface.blit(self.shadow, pyVec(screenPos))
         surface.blit(self.image, pyVec(screenPos))

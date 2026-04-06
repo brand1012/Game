@@ -177,10 +177,11 @@ class GameEngine(object):
 
     def getMainMenuOptions(self):
         continueLabel = "Continue" if self.canContinueStory else "Continue (No Save)"
+        storyLabel = "Restart Campaign" if self.canContinueStory else "Start Campaign"
         return [
-            ("Story Campaign", "story"),
-            ("Practice Shift", "practice"),
             (continueLabel, "continue"),
+            (storyLabel, "story"),
+            ("Practice Shift", "practice"),
             ("Quit", "quit"),
         ]
 
@@ -232,9 +233,9 @@ class GameEngine(object):
         self.dialogueData = None
         self.dialogueAction = ""
 
-        self.player.position = vec(500, 600)
-        self.player.velocity = vec(0, 0)
-        self.player.updateRect()
+        officeSpawn = self.getOfficeRespawnPosition()
+        self.player.setRespawnPosition(officeSpawn)
+        self.player.placeAt(officeSpawn)
         self.buildWorldProps()
         self.centerCameraOnPlayer()
         self.clampCamera()
@@ -328,9 +329,9 @@ class GameEngine(object):
         self.dialogueData = None
         self.dialogueAction = ""
 
-        self.player.position = vec(500, 600)
-        self.player.velocity = vec(0, 0)
-        self.player.updateRect()
+        officeSpawn = self.getOfficeRespawnPosition()
+        self.player.setRespawnPosition(officeSpawn)
+        self.player.placeAt(officeSpawn)
         self.buildWorldProps()
         self.centerCameraOnPlayer()
         self.clampCamera()
@@ -603,7 +604,6 @@ class GameEngine(object):
         activeSemiWalls = [rig for rig in self.semiTruckRigs if rig.active and getattr(rig, "rect", None)]
         collisionWalls = self.walls + activeVehicleWalls + activeSemiWalls
 
-        self.player.update(seconds, collisionWalls)
         for worldProp in self.worldProps:
             worldProp.update(seconds)
         for vehicleWave in self.vehicleWaves:
@@ -611,7 +611,15 @@ class GameEngine(object):
         for semiTruckWave in self.semiTruckWaves:
             semiTruckWave.update(seconds)
 
-        self.updateInteractionPrompt()
+        self.player.update(seconds, collisionWalls)
+        self.updateTrafficHazards()
+
+        if self.player.isMelting():
+            self.showInteractPrompt = False
+            self.currentInteraction = None
+        else:
+            self.updateInteractionPrompt()
+
         self.centerCameraOnPlayer()
         self.clampCamera()
 
@@ -835,9 +843,36 @@ class GameEngine(object):
             vec(*self.RESOLUTION) / 2
         )
 
+    def getOfficeRespawnPosition(self):
+        officeZone = self.getZone("Offices")
+        spriteWidth, spriteHeight = self.player.image.get_size()
+        return vec(
+            officeZone.position[0] + (officeZone.size[0] / 2) - (spriteWidth / 2),
+            officeZone.position[1] + officeZone.size[1] - spriteHeight - 18,
+        )
+
     def getZone(self, name, index=0):
         matches = [zone for zone in self.zones if zone.name == name]
         return matches[index]
+
+    def getActiveTrafficHazards(self):
+        return [
+            vehicle
+            for vehicle in self.laneVehicles
+            if vehicle.rect and vehicle.isMoving()
+        ]
+
+    def updateTrafficHazards(self):
+        if not self.player.canBeHitByTraffic():
+            return
+
+        impactRect = self.player.rect
+        for hazard in self.getActiveTrafficHazards():
+            if hazard.isForwardImpact(impactRect):
+                self.player.startTrafficMeltdown(self.getOfficeRespawnPosition())
+                self.showInteractPrompt = False
+                self.currentInteraction = None
+                return
 
     def addWorldProp(self, position, fileName, size, collisionSize=None, collisionOffset=(0, 0)):
         image = pygame.transform.smoothscale(self.spriteManager.getSprite(fileName), size)
