@@ -1,5 +1,4 @@
 __pycache__/
 *.pyc
 vscode/
-savegame.json
-highscores.json
+*.json
