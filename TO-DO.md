@@ -27,3 +27,4 @@ OTHER FEEDBACK
 4) fix the conveyor belt game
 5) business money does not carry over from day to day
 6) make the minigames harder as the days go on (i.e. conveyor belt becomes faster, quota gets larger, time limit is lower)
+7) highscore doesnt update from campaign mode minigames
