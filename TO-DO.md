@@ -8,6 +8,8 @@
 # 8) Add a main menu
 # 9) Make minigames progress in difficulty
 # 10) Add NPCs?
+11) have a day where you are too tired from the night before, so your vision is all messed up
+12) fix text length in cutscenes, too long for the screen right now
 
 FEEDBACK FROM PEER FEEDBACK DAY 2 (Mar 18):
 # 1) Player needs to know how to access info screen and stock

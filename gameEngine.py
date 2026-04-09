@@ -1,4 +1,5 @@
 import os
+import sys
 
 import pygame
 
@@ -49,7 +50,7 @@ class GameEngine(object):
         self.WORLD_SIZE = (1000, 700)
 
         monitorResolution = self.getMonitorResolution()
-        self.screen = pygame.display.set_mode(list(monitorResolution), pygame.NOFRAME)
+        self.screen = self.createDisplay(monitorResolution)
         self.UPSCALED = list(self.screen.get_size())
         self.drawSurface = pygame.Surface(list(self.RESOLUTION))
 
@@ -104,6 +105,14 @@ class GameEngine(object):
 
         self.resetRuntimeState()
         self.refreshContinueOption()
+
+    def createDisplay(self, monitorResolution):
+        is_macos = sys.platform == "darwin"
+        
+        if is_macos:
+            return pygame.display.set_mode(list(monitorResolution), pygame.FULLSCREEN)
+        else:
+            return pygame.display.set_mode(list(monitorResolution), pygame.NOFRAME)
 
     def getMonitorResolution(self):
         desktopSizes = pygame.display.get_desktop_sizes()
