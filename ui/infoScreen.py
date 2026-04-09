@@ -5,6 +5,7 @@ import systems.economy as economy
 
 def drawInfoScreen(game, surface):
     surface.fill((37, 44, 61))
+    moneyLabel = "Business cash" if game.mode == "story" and game.campaign else "Money"
 
     title = game.myFont.render("WAREHOUSE INFO", True, (255, 255, 255))
     surface.blit(title, (112, 12))
@@ -13,7 +14,7 @@ def drawInfoScreen(game, surface):
         f"Workers: {game.workers}",
         f"Vans: {game.vans}",
         f"Van capacity: {game.vanCapacity} packages",
-        f"Money: ${int(game.money)}",
+        f"{moneyLabel}: ${int(game.money)}",
         f"Packages shipped: {int(game.packagesShipped)}",
         f"Income per second: ${economy.getIncomePerSecond(game)}/sec",
         f"Contract multiplier: x{game.contractMultiplier}",

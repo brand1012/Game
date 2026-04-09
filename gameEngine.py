@@ -9,6 +9,7 @@ import systems.economy as economy
 import systems.highScores as highScores
 import systems.saveData as saveData
 import systems.storyContent as storyContent
+import systems.storyDifficulty as storyDifficulty
 import ui.briefingScreen as briefingScreen
 import ui.daySummaryScreen as daySummaryScreen
 import ui.dialogueScreen as dialogueScreen
@@ -208,19 +209,6 @@ class GameEngine(object):
             ("Quit", "quit"),
         ]
 
-    def syncHouseholdMoneyFromGame(self):
-        if self.household:
-            if not self.campaign or self.campaign.phase == "briefing":
-                self.household.moneyOnHand = int(self.money)
-            elif self.campaign.phase == "warehouse":
-                self.household.moneyOnHand = int(self.campaign.dayStartMoney)
-            else:
-                self.household.moneyOnHand = int(self.campaign.dayStartMoney + campaign.getTakeHomePay(self.campaign))
-
-    def syncGameMoneyFromHousehold(self):
-        if self.household:
-            self.money = int(self.household.moneyOnHand)
-
     def autosaveStory(self):
         if self.mode != "story" or not self.campaign or not self.household:
             return
@@ -228,7 +216,6 @@ class GameEngine(object):
         if self.campaign.phase not in VALID_STORY_SAVE_PHASES:
             return
 
-        self.syncHouseholdMoneyFromGame()
         saveData.saveGame(self)
         self.refreshContinueOption()
 
@@ -305,7 +292,6 @@ class GameEngine(object):
 
         self.campaign = campaign.campaignFromDict(savePayload["campaign"])
         self.household = campaign.householdFromDict(savePayload["household"])
-        self.syncHouseholdMoneyFromGame()
 
         phase = self.campaign.phase
         self.applyStoryDaySetup()
@@ -400,7 +386,6 @@ class GameEngine(object):
         self.autosaveStory()
 
     def beginShift(self):
-        self.syncGameMoneyFromHousehold()
         self.campaign.phase = "warehouse"
         self.campaign.dayStartMoney = int(self.money)
         self.daySummaryData = None
@@ -448,8 +433,9 @@ class GameEngine(object):
         self.state = "stock"
 
     def openHomeScreen(self):
-        self.syncHouseholdMoneyFromGame()
         campaign.applyBillsForDay(self.household, self.campaign.dayNumber)
+        if self.campaign.phase != "home":
+            self.household.moneyOnHand += campaign.getTakeHomePay(self.campaign)
         self.homeMenuIndex = 0
         self.campaign.phase = "home"
         self.state = "home"
@@ -457,7 +443,6 @@ class GameEngine(object):
 
     def finishHomePhase(self):
         campaign.finalizeHomePhase(self.household)
-        self.syncGameMoneyFromHousehold()
 
         if self.campaign.dayNumber >= storyContent.CAMPAIGN_LENGTH:
             endingId = campaign.resolveEnding(self.campaign, self.household)
@@ -510,9 +495,12 @@ class GameEngine(object):
         self.openDaySummary()
 
     def getStoryActivityConfig(self, activityId):
-        config = {
-            "recordHighScore": False,
-        }
+        dayNumber = self.campaign.dayNumber if self.campaign else 1
+        config = storyDifficulty.getStoryActivityDifficulty(
+            activityId,
+            dayNumber,
+            isEmergency=bool(self.currentEmergencyDef),
+        )
 
         if activityId == "sorting":
             config.update({
@@ -541,31 +529,6 @@ class GameEngine(object):
             "instructions": emergencySummary,
             "resultLabel": "EMERGENCY RESPONSE COMPLETE",
         })
-
-        if activityId == "urgentUnload":
-            config.update({
-                "roundTime": 38.0,
-                "manifestCount": 5,
-                "moneyPerDelivered": 10,
-            })
-        elif activityId == "manifestMismatch":
-            config.update({
-                "timer": 18,
-                "successThreshold": 4,
-                "scoreMoneyFactor": 4,
-            })
-        elif activityId == "conveyorOverflow":
-            config.update({
-                "roundTime": 26.0,
-                "successTarget": 7,
-                "maxBacklog": 5,
-            })
-        elif activityId == "spillCleanup":
-            config.update({
-                "roundTime": 16.0,
-                "spillCount": 10,
-                "moneyReward": 10,
-            })
 
         return config
 
@@ -733,12 +696,28 @@ class GameEngine(object):
         selectedKey, selectedLabel = homeItems[self.homeMenuIndex]
 
         if event.key in (pygame.K_LEFT, pygame.K_RIGHT) and selectedKey != "sleep":
-            paid = campaign.payBill(self.household, selectedKey, self.homePaymentStep)
+            if selectedKey == "savings" and event.key != pygame.K_RIGHT:
+                self.household.lastMessage = "Savings only accepts deposits here."
+                return True
+
+            payment = campaign.payBill(self.household, selectedKey, self.homePaymentStep)
+            paid = payment["paid"]
             if paid > 0:
-                self.syncGameMoneyFromHousehold()
-                self.household.lastMessage = "Paid ${0} toward {1}".format(paid, selectedLabel)
+                if selectedKey == "savings":
+                    self.household.lastMessage = "Moved ${0} into savings".format(paid)
+                elif payment["fromSavings"] > 0:
+                    self.household.lastMessage = "Paid ${0} toward {1} (${2} from savings)".format(
+                        paid,
+                        selectedLabel,
+                        payment["fromSavings"],
+                    )
+                else:
+                    self.household.lastMessage = "Paid ${0} toward {1}".format(paid, selectedLabel)
             else:
-                self.household.lastMessage = "Not enough cash for {0}".format(selectedLabel.lower())
+                if selectedKey == "savings":
+                    self.household.lastMessage = "Not enough cash to add to savings"
+                else:
+                    self.household.lastMessage = "Not enough cash or savings for {0}".format(selectedLabel.lower())
             return True
 
         if event.key == pygame.K_RETURN and selectedKey == "sleep":

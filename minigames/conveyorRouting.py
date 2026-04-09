@@ -9,9 +9,9 @@ class ConveyorRoutingMinigame:
     HUD_HEIGHT = 34
 
     CATEGORY_INFO = {
-        "Crated": {"color": (195, 155, 90), "lane": "crate"},
-        "Metal": {"color": (145, 170, 210), "lane": "metal"},
-        "Boxed": {"color": (225, 210, 135), "lane": "boxed"},
+        "Crated": {"color": (166, 104, 66), "lane": "crate"},
+        "Metal": {"color": (92, 156, 224), "lane": "metal"},
+        "Boxed": {"color": (104, 196, 112), "lane": "boxed"},
     }
 
     LANE_LABELS = {
@@ -175,6 +175,10 @@ class ConveyorRoutingMinigame:
         return True
 
     def update(self, dt):
+        if self.correct >= self.successTarget:
+            self.finishRound()
+            return
+
         self.timer = max(0.0, self.timer - dt)
         self.spawnTimer -= dt
 
@@ -187,18 +191,28 @@ class ConveyorRoutingMinigame:
             if box["lane"] == "branch":
                 if self.updateBranchBox(box, dt):
                     remaining.append(box)
+                elif self.correct >= self.successTarget:
+                    self.finishRound()
+                    return
                 continue
 
             self.updateMainBox(box, dt)
             if box["lane"] == "branch":
                 if self.updateBranchBox(box, dt):
                     remaining.append(box)
+                elif self.correct >= self.successTarget:
+                    self.finishRound()
+                    return
             elif box["rect"].left > self.playRect.right:
                 self.handleMistake("BOX PASSED THE SORTER")
             else:
                 remaining.append(box)
 
         self.boxes = remaining
+
+        if self.correct >= self.successTarget:
+            self.finishRound()
+            return
 
         if self.feedbackTimer > 0:
             self.feedbackTimer = max(0.0, self.feedbackTimer - dt)

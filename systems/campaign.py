@@ -399,8 +399,13 @@ def getOutstandingBills(household):
 
 def payBill(household, billKey, amount):
     amount = max(0, int(amount))
-    if amount == 0 or household.moneyOnHand <= 0:
-        return 0
+    result = {
+        "paid": 0,
+        "fromCash": 0,
+        "fromSavings": 0,
+    }
+    if amount == 0:
+        return result
 
     if billKey == "rent":
         due = household.rentDue
@@ -413,10 +418,28 @@ def payBill(household, billKey, amount):
     elif billKey == "savings":
         due = household.moneyOnHand
     else:
-        return 0
+        return result
 
-    payment = min(amount, due, household.moneyOnHand)
-    household.moneyOnHand -= payment
+    if billKey == "savings":
+        payment = min(amount, due)
+        household.moneyOnHand -= payment
+        household.savings += payment
+        result["paid"] = payment
+        result["fromCash"] = payment
+        recalculateHousehold(household)
+        return result
+
+    paymentTarget = min(amount, due)
+    cashPayment = min(paymentTarget, household.moneyOnHand)
+    household.moneyOnHand -= cashPayment
+
+    savingsPayment = min(paymentTarget - cashPayment, household.savings)
+    household.savings -= savingsPayment
+
+    payment = cashPayment + savingsPayment
+    result["paid"] = payment
+    result["fromCash"] = cashPayment
+    result["fromSavings"] = savingsPayment
 
     if billKey == "rent":
         household.rentDue -= payment
@@ -426,11 +449,9 @@ def payBill(household, billKey, amount):
         household.medicineNeed -= payment
     elif billKey == "school":
         household.schoolDue -= payment
-    elif billKey == "savings":
-        household.savings += payment
 
     recalculateHousehold(household)
-    return payment
+    return result
 
 
 def recalculateHousehold(household):

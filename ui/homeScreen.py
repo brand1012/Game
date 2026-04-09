@@ -51,7 +51,7 @@ def drawHomeScreen(game, surface):
         if key == "sleep":
             textValue = "Finish day"
         elif key == "savings":
-            textValue = "${0}".format(values[key])
+            textValue = "Balance ${0}".format(values[key])
         else:
             textValue = "Due ${0}".format(values[key])
         line = "{0} {1}: {2}".format(">" if selected else " ", label, textValue)
@@ -63,7 +63,7 @@ def drawHomeScreen(game, surface):
     surface.blit(messageText, (22, 176))
 
     footer = game.infoFont.render(
-        "Up/Down choose  Left/Right pay $10  Enter sleep",
+        "Bills L/R pay $10  Savings R deposits $10  Enter sleep",
         True,
         (205, 205, 205),
     )
