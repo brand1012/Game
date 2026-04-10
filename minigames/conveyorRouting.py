@@ -29,6 +29,10 @@ class ConveyorRoutingMinigame:
         self.isEmergency = self.settings.get("isEmergency", False)
         self.recordHighScore = self.settings.get("recordHighScore", True)
         self.resultLabel = self.settings.get("resultLabel", "CONVEYOR ROUTING COMPLETE")
+        self.failureResultLabel = self.settings.get(
+            "failureResultLabel",
+            "EMERGENCY RESPONSE FAILED" if self.isEmergency else "ROUTING TASK FAILED",
+        )
         self.font = game.myFont
         self.smallFont = game.infoFont
 
@@ -51,6 +55,8 @@ class ConveyorRoutingMinigame:
         self.feedbackText = ""
         self.feedbackColor = (255, 255, 255)
         self.feedbackTimer = 0.0
+        self.flashColor = None
+        self.flashTimer = 0.0
 
         self.gateOneDivert = False
         self.gateTwoDivert = True
@@ -91,6 +97,10 @@ class ConveyorRoutingMinigame:
         self.feedbackColor = color
         self.feedbackTimer = duration
 
+    def triggerFlash(self, color, duration=0.22):
+        self.flashColor = color
+        self.flashTimer = duration
+
     def spawnBox(self):
         category = self.random.choice(list(self.CATEGORY_INFO.keys()))
         rect = self.boxImage.get_rect(center=(-12, self.mainBeltRect.centery))
@@ -115,11 +125,13 @@ class ConveyorRoutingMinigame:
         self.backlog = min(self.maxBacklog, self.backlog + 2)
         self.peakBacklog = max(self.peakBacklog, self.backlog)
         self.setFeedback(message, (255, 120, 120))
+        self.triggerFlash((255, 70, 70))
 
         if self.backlog >= self.maxBacklog:
             self.backlogBursts += 1
             self.backlog = max(2, self.maxBacklog - 2)
             self.setFeedback("BACKLOG SPIKE", (255, 172, 110), duration=0.8)
+            self.triggerFlash((255, 148, 88), duration=0.34)
 
     def resolveBox(self, box):
         self.handled += 1
@@ -131,7 +143,7 @@ class ConveyorRoutingMinigame:
             self.backlog = max(0, self.backlog - 1)
             self.setFeedback(category.upper() + " ROUTED", (120, 255, 150), duration=0.4)
         else:
-            self.handleMistake("WRONG LANE FOR " + category.upper())
+            self.handleMistake("WRONG ROUTE")
 
     def updateMainBox(self, box, dt):
         box["position"][0] += self.boxSpeed * dt
@@ -204,7 +216,7 @@ class ConveyorRoutingMinigame:
                     self.finishRound()
                     return
             elif box["rect"].left > self.playRect.right:
-                self.handleMistake("BOX PASSED THE SORTER")
+                self.handleMistake("MISSED BOX")
             else:
                 remaining.append(box)
 
@@ -216,6 +228,8 @@ class ConveyorRoutingMinigame:
 
         if self.feedbackTimer > 0:
             self.feedbackTimer = max(0.0, self.feedbackTimer - dt)
+        if self.flashTimer > 0:
+            self.flashTimer = max(0.0, self.flashTimer - dt)
 
         if self.timer <= 0:
             self.finishRound()
@@ -234,6 +248,24 @@ class ConveyorRoutingMinigame:
             highScores.saveHighScores(self.game.highScores, "highscores.json")
 
         success = self.correct >= self.successTarget and self.peakBacklog < self.maxBacklog
+        if self.isEmergency:
+            outcomeLabel = "Emergency handled" if success else "Emergency failed"
+            summaryText = (
+                "The belts stayed under control before they buried the next shift."
+                if success
+                else "Misroutes and backlog bursts kept the overflow emergency alive."
+            )
+        elif self.game.mode == "story":
+            outcomeLabel = "Quota credit earned" if success else "No quota credit"
+            summaryText = (
+                "This conveyor run counts toward the day's quota."
+                if success
+                else "Backlog or misroutes broke the run, so it does not count toward quota."
+            )
+        else:
+            outcomeLabel = "Run complete" if success else "Run failed"
+            summaryText = "Fast, clean routing keeps the backlog under control."
+
         self.game.resultsData = {
             "score": score,
             "money": moneyEarned,
@@ -246,7 +278,11 @@ class ConveyorRoutingMinigame:
             "isEmergency": self.isEmergency,
             "packages": self.correct,
             "success": success,
-            "resultLabel": self.resultLabel,
+            "resultLabel": self.resultLabel if success else self.failureResultLabel,
+            "outcomeLabel": outcomeLabel,
+            "summaryText": summaryText,
+            "moneyPenalty": 0,
+            "countsForQuota": success,
             "safetyDelta": self.correct // 4 - self.wrong,
         }
         self.game.state = "results"
@@ -344,3 +380,8 @@ class ConveyorRoutingMinigame:
         self.drawLanes(surface)
         self.drawBoxes(surface)
         self.drawHud(surface)
+        if self.flashTimer > 0 and self.flashColor:
+            flashSurface = pygame.Surface(surface.get_size(), pygame.SRCALPHA)
+            alpha = int(85 * (self.flashTimer / 0.22))
+            flashSurface.fill((*self.flashColor, max(0, min(120, alpha))))
+            surface.blit(flashSurface, (0, 0))

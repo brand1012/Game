@@ -241,6 +241,7 @@ class GameEngine(object):
         self.money = 0
         self.packagesShipped = 0
         self.showInteractPrompt = False
+        self.interactPromptText = ""
         self.currentInteraction = None
 
         self.currentMinigame = None
@@ -428,11 +429,18 @@ class GameEngine(object):
     def openDaySummary(self):
         beat = storyContent.get_day_beat(self.campaign.dayNumber)
         self.currentEmergencyDef = None
-        self.campaign.payToday = max(0, int(self.money) - int(self.campaign.dayStartMoney))
+        quotaStressPenalty = 0
+        if campaign.getQuotaCompletion(self.campaign) < 1.0 and self.household:
+            quotaStressPenalty = 4
+            self.household.stress += quotaStressPenalty
+            campaign.recalculateHousehold(self.household)
+
+        self.campaign.payToday = int(self.money) - int(self.campaign.dayStartMoney)
         self.daySummaryData = campaign.buildDaySummary(
             self.campaign,
             beat,
             emergencyOutcome=self.currentEmergencyOutcome,
+            quotaStressPenalty=quotaStressPenalty,
         )
         self.campaign.phase = "daySummary"
         self.state = "daySummary"
@@ -457,7 +465,6 @@ class GameEngine(object):
             endingId = campaign.resolveEnding(self.campaign, self.household)
             endingDef = storyContent.ENDING_DEFS[endingId]
             self.campaign.currentEndingId = endingId
-            saveData.deleteSave()
             self.refreshContinueOption()
             self.queueDialogue(
                 title=endingDef["title"],
@@ -515,15 +522,18 @@ class GameEngine(object):
             config.update({
                 "title": "SORT THE FLOOR FREIGHT",
                 "resultLabel": "SHIFT TASK COMPLETE",
+                "failureResultLabel": "SHIFT TASK FAILED",
             })
         elif activityId == "semiUnloading":
             config.update({
                 "title": "CLEAR THE DOCK TRAILER",
                 "resultLabel": "DOCK TASK COMPLETE",
+                "failureResultLabel": "DOCK TASK FAILED",
             })
         elif activityId == "conveyorRouting":
             config.update({
                 "resultLabel": "ROUTING TASK COMPLETE",
+                "failureResultLabel": "ROUTING TASK FAILED",
             })
 
         if not self.currentEmergencyDef:
@@ -537,6 +547,7 @@ class GameEngine(object):
             "title": self.currentEmergencyDef.get("title", "").upper(),
             "instructions": emergencySummary,
             "resultLabel": "EMERGENCY RESPONSE COMPLETE",
+            "failureResultLabel": "EMERGENCY RESPONSE FAILED",
         })
 
         return config
@@ -556,6 +567,9 @@ class GameEngine(object):
         self.mainMenuIndex = 0
         self.continueMenuIndex = 0
         self.continueOptions = []
+        self.showInteractPrompt = False
+        self.interactPromptText = ""
+        self.currentInteraction = None
         self.state = "mainMenu"
         self.refreshContinueOption()
 
@@ -843,6 +857,9 @@ class GameEngine(object):
         return activityRegistry.buildActivity(self, activityId, overrides)
 
     def startActivity(self, activityId, overrides=None):
+        self.showInteractPrompt = False
+        self.interactPromptText = ""
+        self.currentInteraction = None
         self.currentMinigameType = activityId
         self.currentMinigame = self.buildActivity(activityId, overrides)
         self.state = "minigame"
@@ -882,6 +899,7 @@ class GameEngine(object):
             if hazard.isForwardImpact(impactRect):
                 self.player.startTrafficMeltdown(self.getOfficeRespawnPosition())
                 self.showInteractPrompt = False
+                self.interactPromptText = ""
                 self.currentInteraction = None
                 return
 
@@ -979,22 +997,27 @@ class GameEngine(object):
 
     def updateInteractionPrompt(self):
         self.showInteractPrompt = False
+        self.interactPromptText = ""
         self.currentInteraction = None
         interactionRect = self.player.interactionRect
 
-        if self.isSemiReadyForUnload():
-            for forklift in self.loadingDockForklifts:
-                targetRect = getattr(forklift, "interactionRect", forklift.rect)
-                if targetRect and interactionRect.colliderect(targetRect):
-                    self.showInteractPrompt = True
+        for forklift in self.loadingDockForklifts:
+            targetRect = getattr(forklift, "interactionRect", forklift.rect)
+            if targetRect and interactionRect.colliderect(targetRect):
+                self.showInteractPrompt = True
+                if self.isSemiReadyForUnload():
+                    self.interactPromptText = "Press E to unload"
                     self.currentInteraction = "semiUnloading"
-                    return
+                else:
+                    self.interactPromptText = "Wait for the semi to dock"
+                return
 
         if self.mode != "story":
             for control in self.spillCleanupControls:
                 targetRect = getattr(control, "interactionRect", control.rect)
                 if targetRect and interactionRect.colliderect(targetRect):
                     self.showInteractPrompt = True
+                    self.interactPromptText = "Press E to clean spill"
                     self.currentInteraction = "spillCleanup"
                     return
 
@@ -1003,6 +1026,7 @@ class GameEngine(object):
             for pallet in self.sortingPallets:
                 if pallet.rect and interactionRect.colliderect(pallet.rect):
                     self.showInteractPrompt = True
+                    self.interactPromptText = "Press E to sort freight"
                     self.currentInteraction = "sorting"
                     return
 
@@ -1010,12 +1034,14 @@ class GameEngine(object):
             targetRect = getattr(control, "interactionRect", control.rect)
             if targetRect and interactionRect.colliderect(targetRect):
                 self.showInteractPrompt = True
+                self.interactPromptText = "Press E to route freight"
                 self.currentInteraction = "conveyorRouting"
                 return
 
         for desk in self.upgradeDesks:
             if desk.rect and interactionRect.colliderect(desk.rect):
                 self.showInteractPrompt = True
+                self.interactPromptText = "Press E to review upgrades"
                 self.currentInteraction = "upgrade"
                 return
 

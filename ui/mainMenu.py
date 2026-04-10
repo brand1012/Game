@@ -4,9 +4,9 @@ import pygame
 def drawMainMenu(game, surface):
     surface.fill((16, 20, 27))
 
-    title = game.myFont.render("WAREHOUSE SHIFT", True, (255, 255, 255))
+    title = game.myFont.render("SHIFT MANAGER", True, (255, 255, 255))
     subtitle = game.infoFont.render("Story campaign and practice warehouse shift", True, (198, 208, 220))
-    surface.blit(title, (125, 16))
+    surface.blit(title, (130, 16))
     surface.blit(subtitle, (58, 36))
 
     card = pygame.Rect(44, 56, 312, 104)

@@ -15,6 +15,10 @@ class SortingMinigame:
         self.isEmergency = self.settings.get("isEmergency", False)
         self.recordHighScore = self.settings.get("recordHighScore", True)
         self.resultLabel = self.settings.get("resultLabel", "SHIFT COMPLETE")
+        self.failureResultLabel = self.settings.get(
+            "failureResultLabel",
+            "EMERGENCY RESPONSE FAILED" if self.isEmergency else "SHIFT FAILED",
+        )
         self.titleText = self.settings.get("title", "DRAG PALLETS TO THE RIGHT BAY")
         self.instructionsText = self.settings.get(
             "instructions",
@@ -27,6 +31,7 @@ class SortingMinigame:
         self.palletSize = (78, 92)
         self.scoreMoneyFactor = int(self.settings.get("scoreMoneyFactor", 5))
         self.successThreshold = int(self.settings.get("successThreshold", 2 if self.isEmergency else 0))
+        self.wrongPenalty = int(self.settings.get("wrongPenalty", 2))
 
         self.categories = [
             {"name": "Crated", "color": (195, 155, 90), "fileNames": ["freight/Freight-5.png", "freight/Freight-10.png"]},
@@ -65,6 +70,7 @@ class SortingMinigame:
         self.dragging = False
 
     def finishRound(self):
+        success = self.score >= self.successThreshold
         moneyEarned = max(0, self.score * self.scoreMoneyFactor)
         delivered = max(0, self.score)
         self.game.money += moneyEarned
@@ -78,6 +84,24 @@ class SortingMinigame:
             self.game.highScores[gameType] = self.score
             highScores.saveHighScores(self.game.highScores, "highscores.json")
 
+        if self.isEmergency:
+            outcomeLabel = "Emergency handled" if success else "Emergency failed"
+            summaryText = (
+                "The relabel mess got sorted out in time."
+                if success
+                else "Too many pallets stayed mislabeled and the floor is still scrambled."
+            )
+        elif self.game.mode == "story":
+            outcomeLabel = "Quota credit earned" if success else "No quota credit"
+            summaryText = (
+                "This sorting run counts toward the day's quota."
+                if success
+                else "This sorting run fell short and does not count toward quota."
+            )
+        else:
+            outcomeLabel = "Run complete" if success else "Run failed"
+            summaryText = "Keep sorting cleanly to push the score higher."
+
         self.game.resultsData = {
             "score": self.score,
             "money": moneyEarned,
@@ -89,8 +113,12 @@ class SortingMinigame:
             "dayProgressDelta": self.dayProgressDelta,
             "isEmergency": self.isEmergency,
             "packages": delivered,
-            "success": self.score >= self.successThreshold,
-            "resultLabel": self.resultLabel,
+            "success": success,
+            "resultLabel": self.resultLabel if success else self.failureResultLabel,
+            "outcomeLabel": outcomeLabel,
+            "summaryText": summaryText,
+            "moneyPenalty": 0,
+            "countsForQuota": success,
         }
         self.game.state = "results"
 
@@ -114,7 +142,7 @@ class SortingMinigame:
             self.feedbackColor = (100, 255, 140)
             self.spawnNewPallet()
         else:
-            self.score -= 1
+            self.score -= self.wrongPenalty
             self.feedbackText = "Wrong Bay"
             self.feedbackColor = (255, 110, 110)
             self.palletRect.topleft = (161, 48)

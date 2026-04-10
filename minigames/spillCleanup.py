@@ -14,6 +14,10 @@ class SpillCleanupMinigame:
         self.dayProgressDelta = self.settings.get("dayProgressDelta", 0.1)
         self.recordHighScore = self.settings.get("recordHighScore", not self.isEmergency)
         self.resultLabel = self.settings.get("resultLabel", "SPILL CLEANUP COMPLETE")
+        self.failureResultLabel = self.settings.get(
+            "failureResultLabel",
+            "EMERGENCY RESPONSE FAILED" if self.isEmergency else "SPILL CLEANUP FAILED",
+        )
         self.font = game.myFont
         self.smallFont = game.infoFont
         self.timer = float(self.settings.get("roundTime", 18.0))
@@ -40,7 +44,8 @@ class SpillCleanupMinigame:
 
     def finishRound(self):
         score = self.cleaned * self.scorePerSpill + int(max(0, self.timer) * 10)
-        moneyEarned = self.moneyReward if self.cleaned == self.totalSpills else max(0, self.cleaned * 2)
+        success = self.cleaned == self.totalSpills
+        moneyEarned = self.moneyReward if success else max(0, self.cleaned * 2)
         self.game.money += moneyEarned
         previousHigh = self.game.highScores.get(self.activityId, 0)
         isNewHigh = score > previousHigh
@@ -48,6 +53,24 @@ class SpillCleanupMinigame:
         if isNewHigh and self.recordHighScore:
             self.game.highScores[self.activityId] = score
             highScores.saveHighScores(self.game.highScores, "highscores.json")
+
+        if self.isEmergency:
+            outcomeLabel = "Emergency handled" if success else "Emergency failed"
+            summaryText = (
+                "The spill was cleared before the lane turned into a hazard."
+                if success
+                else "The cleanup ran out of time and slick patches were still on the floor."
+            )
+        elif self.game.mode == "story":
+            outcomeLabel = "Quota credit earned" if success else "No quota credit"
+            summaryText = (
+                "This cleanup run counts toward the day's quota."
+                if success
+                else "The cleanup fell short and does not count toward quota."
+            )
+        else:
+            outcomeLabel = "Run complete" if success else "Run failed"
+            summaryText = "Cut a clean path through every spill before time runs out."
 
         self.game.resultsData = {
             "score": score,
@@ -60,8 +83,12 @@ class SpillCleanupMinigame:
             "dayProgressDelta": self.dayProgressDelta,
             "isEmergency": self.isEmergency,
             "packages": self.cleaned,
-            "success": self.cleaned == self.totalSpills,
-            "resultLabel": self.resultLabel,
+            "success": success,
+            "resultLabel": self.resultLabel if success else self.failureResultLabel,
+            "outcomeLabel": outcomeLabel,
+            "summaryText": summaryText,
+            "moneyPenalty": 0,
+            "countsForQuota": success,
             "safetyDelta": self.cleaned // 3,
         }
         self.game.state = "results"

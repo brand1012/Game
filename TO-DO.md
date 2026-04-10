@@ -9,7 +9,7 @@
 # 9) Make minigames progress in difficulty
 # 10) Add NPCs?
 11) have a day where you are too tired from the night before, so your vision is all messed up
-12) fix text length in cutscenes, too long for the screen right now
+# 12) fix text length in cutscenes, too long for the screen right now
 
 FEEDBACK FROM PEER FEEDBACK DAY 2 (Mar 18):
 # 1) Player needs to know how to access info screen and stock
@@ -30,25 +30,25 @@ OTHER FEEDBACK
 # 6) highscore doesnt update from campaign mode minigames
 
 FEEDBACK FROM NIKOLA GAME TESTING
-1. change home screen “warehouse shift” to game title (Shift Manager)
-2. fix text overflow on campaign dialogue pages
-3. show in upgrade screen the amount of money, current stats
+# 1. change home screen "warehouse shift" to game title (Shift Manager)
+# 2. fix text overflow on campaign dialogue pages
+# 3. show in upgrade screen the amount of money, current stats
 4. have conveyor game punish for wrong packages (red popup on screen and make it restart from beginning?) or maybe if you fail enough then you lose the minigame
 5. maybe have a brief tour at the beginning? boss showing you around the warehouse floor, showing where each task is
-6. space doesnt show anywhere on the dock unload screen
-7. the spill emergency minigame happens for the first time far too late
-8. make popup on forklift when the semi isn’t there saying you need to wait for the semi
-9. there isnt a fail screen when you fail the semi unloading task, you should lose money/packages
+# 6. space doesnt show anywhere on the dock unload screen
+# 7. the spill emergency minigame happens for the first time far too late
+# 8. make popup on forklift when the semi isn't there saying you need to wait for the semi
+# 9. there isnt a fail screen when you fail the semi unloading task, you should lose money/packages
 10. can i make the emergency minigames actually different? maybe for manifest mismatch the zones are just swapped!
-11. household expenses should be higher, it should be hard to keep stability high…
-12. have a completion quota/requirement for the sorting, but it goes the entire time
+# 11. household expenses should be higher, it should be hard to keep stability high...
+# 12. have a completion quota/requirement for the sorting, but it goes the entire time
 13. add energy drink/character upgrades?
-14. missing the quota should increase stress
-15. spill game needs to come up much earlier
-16. sort failure should be a -2 points
-17. spill cleanup is very fast
-18. dock unload game takes too long
-19. speed up/down is good but why is left/right so slow?
-20. decrease the amount of dock unloads in the daily quotas
-21. emergencies don’t scale based on the difficulty but they should
-22. savegame.json should not be deleted upon game completion
+# 14. missing the quota should increase stress
+# 15. spill game needs to come up much earlier
+# 16. sort failure should be a -2 points
+# 17. spill cleanup is very fast
+# 18. dock unload game takes too long
+# 19. speed up/down is good but why is left/right so slow?
+# 20. decrease the amount of dock unloads in the daily quotas
+# 21. emergencies don't scale based on the difficulty but they should
+# 22. savegame.json should not be deleted upon game completion

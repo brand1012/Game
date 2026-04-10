@@ -3,6 +3,7 @@ import pygame
 import minigames.registry as activityRegistry
 import systems.campaign as campaign
 import systems.storyContent as storyContent
+import ui.textLayout as textLayout
 
 
 def drawBriefingScreen(game, surface):
@@ -23,11 +24,19 @@ def drawBriefingScreen(game, surface):
     )
     surface.blit(speaker, (18, 32))
 
-    summary = game.infoFont.render(beat["summary"], True, (220, 220, 220))
-    surface.blit(summary, (18, 50))
+    textLayout.drawWrappedText(
+        surface,
+        game.infoFont,
+        beat["summary"],
+        (220, 220, 220),
+        (18, 48),
+        364,
+        lineHeight=13,
+        maxLines=2,
+    )
 
-    quotaBox = pygame.Rect(18, 72, 170, 84)
-    noteBox = pygame.Rect(204, 72, 178, 84)
+    quotaBox = pygame.Rect(18, 76, 170, 86)
+    noteBox = pygame.Rect(204, 76, 178, 86)
     pygame.draw.rect(surface, (34, 40, 48), quotaBox, border_radius=12)
     pygame.draw.rect(surface, (34, 40, 48), noteBox, border_radius=12)
     pygame.draw.rect(surface, (98, 112, 128), quotaBox, 2, border_radius=12)
@@ -42,13 +51,29 @@ def drawBriefingScreen(game, surface):
     quotas.append("Package target: {0}".format(beat["quota"]["packageTarget"]))
     for index, line in enumerate(quotas):
         text = game.infoFont.render(line, True, (230, 230, 230))
-        surface.blit(text, (30, 100 + index * 16))
+        surface.blit(text, (30, 98 + index * 15))
 
     noteTitle = game.infoFont.render("FLOOR TALK", True, (255, 255, 255))
-    surface.blit(noteTitle, (216, 82))
-    for index, line in enumerate(beat["dialogue"][:3]):
-        text = game.infoFont.render(line, True, (230, 230, 230))
-        surface.blit(text, (216, 100 + index * 16))
+    surface.blit(noteTitle, (216, 86))
+
+    textY = 102
+    lineHeight = 13
+    maxNoteLines = 4
+    usedLines = 0
+    for line in beat["dialogue"]:
+        remainingLines = maxNoteLines - usedLines
+        if remainingLines <= 0:
+            break
+
+        wrappedLines = textLayout.wrapText(game.infoFont, line, 154)
+        wrappedLines = textLayout.trimWrappedLines(game.infoFont, wrappedLines, 154, remainingLines)
+        for wrappedLine in wrappedLines:
+            text = game.infoFont.render(wrappedLine, True, (230, 230, 230))
+            surface.blit(text, (216, textY))
+            textY += lineHeight
+        usedLines += len(wrappedLines)
+        if usedLines < maxNoteLines:
+            textY += 1
 
     footer = game.infoFont.render(
         "Enter start shift  B back to warehouse  S company pressure",

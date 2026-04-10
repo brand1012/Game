@@ -331,7 +331,8 @@ def isShiftComplete(campaign):
 def registerActivityResult(campaign, resultData):
     activityId = resultData.get("activityId")
     quotaKey = resultData.get("quotaKey")
-    if quotaKey:
+    countsForQuota = bool(resultData.get("countsForQuota", True))
+    if quotaKey and quotaKey != "emergencies" and countsForQuota:
         campaign.completedJobs[quotaKey] = campaign.completedJobs.get(quotaKey, 0) + 1
     if resultData.get("isEmergency"):
         campaign.completedJobs["emergencies"] = campaign.completedJobs.get("emergencies", 0) + 1
@@ -341,7 +342,7 @@ def registerActivityResult(campaign, resultData):
     return activityId
 
 
-def buildDaySummary(campaign, beat, emergencyOutcome=None):
+def buildDaySummary(campaign, beat, emergencyOutcome=None, quotaStressPenalty=0):
     quotaMet = getQuotaCompletion(campaign) >= 1.0
     quotaProgress = []
 
@@ -364,6 +365,7 @@ def buildDaySummary(campaign, beat, emergencyOutcome=None):
         "payToday": campaign.payToday,
         "takeHomePay": getTakeHomePay(campaign),
         "emergencyOutcome": emergencyOutcome,
+        "quotaStressPenalty": int(quotaStressPenalty),
     }
     campaign.currentSummary = summary
     return summary

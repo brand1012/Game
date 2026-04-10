@@ -98,8 +98,8 @@ def drawUI(game, surface):
         surface.blit(briefingHint, (141, 26))
         drawStoryPanel(game, surface)
 
-    if game.showInteractPrompt:
-        prompt = game.uiFont.render("Press E to interact", True, (0, 0, 0))
+    if game.showInteractPrompt and game.interactPromptText:
+        prompt = game.uiFont.render(game.interactPromptText, True, (0, 0, 0))
         x = (game.RESOLUTION[0] - prompt.get_width()) // 2
         y = game.RESOLUTION[1] - 30
         surface.blit(prompt, (x, y))

@@ -13,6 +13,8 @@ class SemiUnloadingMinigame:
     MANIFEST_COUNT = 6
     EMPTY_SPEED = 72
     LOADED_SPEED = 58
+    EMPTY_HORIZONTAL_SPEED = 84
+    LOADED_HORIZONTAL_SPEED = 68
     COLLISION_COOLDOWN = 0.25
 
     def __init__(self, game, settings=None):
@@ -24,10 +26,14 @@ class SemiUnloadingMinigame:
         self.isEmergency = self.settings.get("isEmergency", False)
         self.recordHighScore = self.settings.get("recordHighScore", True)
         self.resultLabel = self.settings.get("resultLabel", "DOCK SHIFT COMPLETE")
+        self.failureResultLabel = self.settings.get(
+            "failureResultLabel",
+            "EMERGENCY RESPONSE FAILED" if self.isEmergency else "DOCK SHIFT FAILED",
+        )
         self.titleText = self.settings.get("title", "UNLOAD THE SEMI")
         self.instructionsText = self.settings.get(
             "instructions",
-            "WASD / Arrows move   SPACE unload to the matching bay",
+            "WASD / Arrows move the forklift",
         )
         self.roundTime = float(self.settings.get("roundTime", self.ROUND_TIME))
         self.manifestCount = int(self.settings.get("manifestCount", self.MANIFEST_COUNT))
@@ -230,15 +236,16 @@ class SemiUnloadingMinigame:
     def moveForklift(self, dt):
         keys = pygame.key.get_pressed()
         speed = self.LOADED_SPEED if self.carrying else self.EMPTY_SPEED
+        horizontalSpeed = self.LOADED_HORIZONTAL_SPEED if self.carrying else self.EMPTY_HORIZONTAL_SPEED
         moveX = 0
         moveY = 0
 
         if keys[pygame.K_LEFT] or keys[pygame.K_a]:
-            moveX = -speed
+            moveX = -horizontalSpeed
             self.facing = "left"
             self.visualFacing = "left"
         elif keys[pygame.K_RIGHT] or keys[pygame.K_d]:
-            moveX = speed
+            moveX = horizontalSpeed
             self.facing = "right"
             self.visualFacing = "right"
         elif keys[pygame.K_UP] or keys[pygame.K_w]:
@@ -316,7 +323,11 @@ class SemiUnloadingMinigame:
 
     def finishRound(self):
         finalScore = self.getFinalScore()
-        moneyEarned = self.delivered * self.moneyPerDelivered
+        missedPallets = max(0, self.manifestCount - self.delivered)
+        moneyPenalty = missedPallets * self.moneyPerDelivered
+        success = self.delivered >= self.manifestCount
+        grossPay = self.delivered * self.moneyPerDelivered
+        moneyEarned = grossPay if success else grossPay - moneyPenalty
         self.game.money += moneyEarned
         self.game.packagesShipped += self.delivered
 
@@ -327,6 +338,24 @@ class SemiUnloadingMinigame:
         if isNewHigh and self.recordHighScore:
             self.game.highScores[gameType] = finalScore
             highScores.saveHighScores(self.game.highScores, "highscores.json")
+
+        if self.isEmergency:
+            outcomeLabel = "Emergency handled" if success else "Emergency failed"
+            summaryText = (
+                "The rush trailer got cleared before dispatch missed the route."
+                if success
+                else "The trailer rolled out with freight still inside and the emergency slipped."
+            )
+        elif self.game.mode == "story":
+            outcomeLabel = "Quota credit earned" if success else "No quota credit"
+            summaryText = (
+                "Every pallet made it to the correct dock bay in time."
+                if success
+                else "The trailer pulled away with {0} pallet(s) still inside.".format(missedPallets)
+            )
+        else:
+            outcomeLabel = "Run complete" if success else "Run failed"
+            summaryText = "Clean dock unloads are faster and safer when every pallet gets out."
 
         self.game.resultsData = {
             "score": finalScore,
@@ -339,8 +368,12 @@ class SemiUnloadingMinigame:
             "dayProgressDelta": self.dayProgressDelta,
             "isEmergency": self.isEmergency,
             "packages": self.delivered,
-            "success": self.delivered >= self.manifestCount,
-            "resultLabel": self.resultLabel,
+            "success": success,
+            "resultLabel": self.resultLabel if success else self.failureResultLabel,
+            "outcomeLabel": outcomeLabel,
+            "summaryText": summaryText,
+            "moneyPenalty": moneyPenalty if not success else 0,
+            "countsForQuota": success,
             "safetyDelta": -self.collisions,
         }
         self.game.state = "results"
@@ -491,8 +524,23 @@ class SemiUnloadingMinigame:
             feedback = self.smallFont.render(self.feedbackText, True, self.feedbackColor)
             surface.blit(feedback, (10, 68))
 
+    def drawActionHint(self, surface):
+        hintRect = pygame.Rect(238, 38, 146, 18)
+        pygame.draw.rect(surface, (24, 24, 28), hintRect, border_radius=8)
+        pygame.draw.rect(surface, (212, 212, 212), hintRect, 1, border_radius=8)
+
+        keyText = self.smallFont.render("SPACE", True, (255, 220, 118))
+        actionText = self.smallFont.render(
+            "drop pallet" if self.carrying else "pick up pallet",
+            True,
+            (235, 235, 235),
+        )
+        surface.blit(keyText, (hintRect.x + 8, hintRect.y + 3))
+        surface.blit(actionText, (hintRect.x + 54, hintRect.y + 3))
+
     def draw(self, surface):
         self.drawPlayfield(surface)
+        self.drawActionHint(surface)
         self.drawTrailer(surface)
         self.drawForklift(surface)
         self.drawHud(surface)
